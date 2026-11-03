@@ -1,0 +1,14 @@
+*** WC Mix and Match - Quickview Changelog ***
+
+XXXX.XX.XX - Version 3.0.0-beta.1
+* Breaking: Rebuilt without React. The quick view is a native dialog that works with the jQuery add to cart form.
+* New: Open the quick view by clicking a child item's image or title. The "Quick View" button and its template are removed.
+* New: "Add to box" button and quantity stepper in the quick view. Quantities are set through the child item's own input, so the form validates and recalculates.
+* New: The add button is disabled when the container is full, including after choosing another package in Mix and Match 3.0.
+* New: Previous and next buttons, and arrow keys, to page through the child items.
+* New: Keyboard support. Child item images can be focused and opened with Enter or Space, Escape closes, and focus returns to the item.
+* New: Product details load on demand from the mnm_get_child_item_quick_view wc-ajax endpoint, and are prefetched on hover or focus.
+* New: Customize the add and remove button text per product, or with the wc_mnm_quick_view_add_to_box_text and wc_mnm_quick_view_remove_from_box_text filters.
+* New: Works in forms loaded with ajax, ex: editing an order item or a subscription.
+* Update: Requires Mix and Match 2.8.0 and WooCommerce 8.0.
+* Update: The main class is now WC\MNM\Quickview\Plugin.

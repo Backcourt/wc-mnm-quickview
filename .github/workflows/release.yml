@@ -1,5 +1,5 @@
 # Add build zip to GitHub releases.
-# Version: 1.2.0
+# Version: 2.0.0
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 
 name: Release
@@ -15,12 +15,12 @@ jobs:
   #
   # Performs the following steps:
   # - Checks out the repository.
-  # - Sets up PHP with Composer.
-  # - Logs debug information.
+  # - Sets up PHP with Composer and WP-CLI.
   # - Get Composer Cache Directory.
-  # - Sets up Composer Caching..
+  # - Sets up Composer Caching.
   # - Logs debug information.
-  # - Install Composer dependencies with development dependencies.
+  # - Install Composer dependencies, production only (prefixed with Strauss).
+  # - Verify prefixed packages.
   # - Setup NodeJS.
   # - Get NPM cache directory.
   # - Sets up NPM Caching.
@@ -30,26 +30,30 @@ jobs:
   # - Check for Beta release.
   # - Check for Release Candidate release.
   # - Logs debug information.
-  # - Build release:
+  # - Build release (generates the POT file with WP-CLI):
   #    - Pre-release.
   #    - Stable.
+  # - Verify release zip.
   # - Add package to GitHub releases.
 
   dist:
     name: "Build distribution release."
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       release: stable
     steps:
 
       - name: "Checks out the repository."
-        uses: "actions/checkout@v3"
+        uses: "actions/checkout@v7"
 
-      - name: "Sets up PHP with Composer."
+      # WP-CLI comes with the i18n command, so the dev packages aren't needed to make the POT file.
+      - name: "Sets up PHP with Composer and WP-CLI."
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '7.4'
-          tools: composer
+          php-version: '8.3'
+          tools: composer, wp-cli
         env:
           COMPOSER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -59,7 +63,7 @@ jobs:
           echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
 
       - name: "Sets up Composer Caching."
-        uses: "actions/cache@v3"
+        uses: "actions/cache@v6"
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: ${{ runner.os }}-php-composer-build-${{ hashFiles('**/composer.lock') }}
@@ -70,15 +74,28 @@ jobs:
         run: |
           php --version
           composer --version
+          wp --allow-root --version
 
-      - name: "Install Composer dependencies with development dependencies."
+      # Production dependencies only. post-install-cmd downloads strauss.phar and prefixes them into vendor-prefixed/.
+      - name: "Install Composer dependencies."
         run: |
-          composer install --no-interaction --prefer-dist --no-scripts
+          composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: "Verify prefixed packages."
+        run: |
+          if [ ! -f ./vendor-prefixed/autoload.php ]; then
+            echo "::error::vendor-prefixed/autoload.php missing. Strauss did not run."
+            exit 1
+          fi
+          if [ -d ./vendor/afragen ]; then
+            echo "::error::Unprefixed dependencies found in vendor/."
+            exit 1
+          fi
 
       - name: "Setup NodeJS."
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
-          node-version: '16'
+          node-version: '24'
 
       - name: "Get NPM cache directory."
         id: npm-cache-dir
@@ -86,7 +103,7 @@ jobs:
           echo "dir=$(npm config get cache)" >> $GITHUB_OUTPUT
 
       - name: "Sets up NPM Caching."
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         with:
           path: ${{ steps.npm-cache-dir.outputs.dir }}
           key: ${{ runner.os }}-node-npm-build-${{ hashFiles('**/package-lock.json') }}
@@ -126,6 +143,7 @@ jobs:
           echo ${{ env.release_tag }}
           echo ${{ env.release_status }}
 
+      # Both run "composer makepot" (WP-CLI) before Grunt builds the assets and the zip.
       - name: "Build release: Pre-release"
         if: ${{ env.release_status == 'pre-release' }}
         run: |
@@ -136,9 +154,27 @@ jobs:
         run: |
           npm run release
 
+      - name: "Verify release zip."
+        run: |
+          zip="./deploy/${{ env.release_name }}-${{ env.release_tag }}.zip"
+          ls -lh ./deploy || true
+          if [ ! -f "$zip" ]; then
+            echo "::error::Release zip not found at $zip"
+            exit 1
+          fi
+          if ! unzip -Z1 "$zip" | grep -qx "${{ env.release_name }}/vendor-prefixed/autoload.php"; then
+            echo "::error::vendor-prefixed/autoload.php is missing from the release zip."
+            exit 1
+          fi
+          if unzip -Z1 "$zip" | grep -q "strauss.phar"; then
+            echo "::error::strauss.phar must not ship in the release zip."
+            exit 1
+          fi
+
       - name: "Add package to GitHub releases."
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: ./deploy/${{ env.release_name }}-${{ env.release_tag }}.zip
+          prerelease: ${{ env.release_status == 'pre-release' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

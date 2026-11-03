@@ -1,22 +1,20 @@
 {
   "title": "WooCommerce Mix and Match Products - Quickview",
   "name": "wc-mnm-quickview",
-  "version": "2.0.0",
-  "description": "Add modal lightbox support for child items.",
+  "version": "3.0.0-beta.1",
+  "description": "Open a Mix and Match child item's product details in a pop-up, with a button to add it to the container.",
   "main": "Gruntfile.js",
   "license": "GPL-3.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kathyisawesome/wc-mnm-quickview"
+    "url": "https://github.com/backcourt/wc-mnm-quickview"
   },
   "bugs": {
-    "url": "https://github.com/kathyisawesome/wc-mnm-quickview/issues"
+    "url": "https://github.com/backcourt/wc-mnm-quickview/issues"
   },
   "author": "helgatheviking",
   "devDependencies": {
     "@lodder/grunt-postcss": "^3.1.1",
-    "@woocommerce/dependency-extraction-webpack-plugin": "^2.3.0",
-    "@wordpress/scripts": "^26.17.0",
     "autoprefixer": "^10.4.16",
     "grunt": "~1.6.1",
     "grunt-contrib-clean": "^2.0.1",
@@ -28,30 +26,18 @@
     "grunt-contrib-watch": "~1.1.0",
     "grunt-newer": "~1.3.0",
     "grunt-rtlcss": "^2.0.2",
-    "grunt-sass": "^3.1.0",
     "grunt-text-replace": "^0.4.0",
     "grunt-wp-i18n": "~1.0.3",
     "jshint-stylish": "~2.2.1",
     "load-grunt-tasks": "~5.1.0",
-    "node-sass": "^9.0.0",
     "postcss": "^8.4.31"
   },
   "scripts": {
-    "build:js": "wp-scripts build",
-    "build": "npm run build:js && grunt build",
-    "dev": "npm run build:js && grunt dev",
-    "format": "wp-scripts format",
-    "lint:css": "wp-scripts lint-style",
-    "lint:js": "wp-scripts lint-js",
-    "lint:md:docs": "wp-scripts lint-md-docs",
-    "lint:pkg-json": "wp-scripts lint-pkg-json",
-    "plugin-zip": "wp-scripts plugin-zip",
-    "prerelease": "npm run makepot && npm run build:js && grunt prerelease",
+    "build": "grunt build",
+    "dev": "grunt assets",
+    "watch": "grunt watch",
     "makepot": "composer run-script makepot",
-    "release": "npm run makepot && npm run build:js && grunt release",
-    "start": "wp-scripts start"
-  },
-  "dependencies": {
-    "interweave": "^13.1.0"
+    "prerelease": "npm run makepot && grunt prerelease",
+    "release": "npm run makepot && grunt release"
   }
 }

@@ -34,10 +34,10 @@ logs/
 package-lock.json
 
 # Compiled assets
-assets/dist/
 assets/js/frontend/*.min.js
 assets/js/backend/*.min.js
-assets/css/
+assets/css/**/*.min.css
+assets/css/**/*-rtl.css
 languages/
 none
 
@@ -46,3 +46,5 @@ none
 
 # Composer
 vendor/
+vendor-prefixed/
+bin/

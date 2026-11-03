@@ -1,43 +1,80 @@
 {
-    "name": "kathyisawesome/wc-mnm-quickview",
-    "description": "Add modal lightbox support for child items.",
-    "homepage": "https://github.com/kathyisawesome/wc-mnm-quickview",
-    "type": "wordpress-plugin",
-    "license": "GPL-3.0-or-later",
-    "require-dev": {
-        "woocommerce/woocommerce-sniffs": "0.1.3",
-        "wp-cli/i18n-command": "^2.4"
-      },
-      "scripts": {
-        "makepot-audit": [
-          "wp --allow-root i18n make-pot . languages/wc-mnm-quickview.pot --slug=wc-mnm-quickview --exclude=\".github,.wordpress-org,node_modules,vendor,build,deploy\" --headers=\"Report-Msgid-Bugs-To: https://woocommerce.com/my-account/tickets/\n\""
-        ],
-        "makepot": [
-          "@makepot-audit --skip-audit"
-        ],
-        "phpcs": [
-            "phpcs . -s -p -n --sniffs=PEAR.Functions.FunctionCallSignature"
-        ],
-        "phpcs-pre-commit": [
-          "phpcs . -s -p -n"
-        ],
-        "phpcb": [
-            "phpcbf . --sniffs=PEAR.Functions.FunctionCallSignature"
-        ]
-      },
-      "config": {
-        "allow-plugins": {
-            "composer/installers": true,
-            "dealerdirect/phpcodesniffer-composer-installer": true
-        }
-      },
-      "extra": {
-        "scripts-description": {
-            "makepot-audit": "Make a .pot file with audit to find possible mistakes in translatable strings",
-            "makepot": "Make a .pot file without checking for mistakes",
-            "phpcs": "Analyze code against the WordPress coding standards with PHP_CodeSniffer",
-            "phpcb": "Fix coding standards warnings/errors automatically with PHP Code Beautifier"
-        }
-      }
-  }
-  
+	"name": "backcourt/wc-mnm-quickview",
+	"description": "Open a Mix and Match child item's product details in a pop-up, with a button to add it to the container.",
+	"homepage": "https://github.com/backcourt/wc-mnm-quickview",
+	"type": "wordpress-plugin",
+	"license": "GPL-3.0-or-later",
+	"authors": [
+		{
+			"name": "helgatheviking",
+			"email": "507025+helgatheviking@users.noreply.github.com"
+		}
+	],
+	"support": {
+		"source": "https://github.com/backcourt/wc-mnm-quickview",
+		"issues": "https://github.com/backcourt/wc-mnm-quickview/issues"
+	},
+	"require": {
+		"php": ">=8.0",
+		"afragen/git-updater-lite": "^3.0"
+	},
+	"require-dev": {
+		"woocommerce/woocommerce-sniffs": "^1.0",
+		"wp-cli/i18n-command": "^2.6"
+	},
+	"scripts": {
+		"makepot-audit": [
+			"wp --allow-root i18n make-pot . languages/wc-mnm-quickview.pot --slug=wc-mnm-quickview --exclude=\".github,.wordpress-org,bin,build,deploy,node_modules,vendor,vendor-prefixed\" --headers='{\"Report-Msgid-Bugs-To\":\"https://github.com/backcourt/wc-mnm-quickview/issues/new\"}'"
+		],
+		"makepot": [
+			"@makepot-audit --skip-audit"
+		],
+		"phpcs": [
+			"phpcs . -s -p -n"
+		],
+		"phpcb": [
+			"phpcbf . "
+		],
+		"prefix-namespaces": [
+			"sh -c 'test -f bin/strauss.phar || { mkdir -p bin && curl -fL -o bin/strauss.phar https://github.com/BrianHenryIE/strauss/releases/latest/download/strauss.phar; }'",
+			"@php bin/strauss.phar",
+			"@composer dump-autoload"
+		],
+		"post-install-cmd": [
+			"@prefix-namespaces"
+		],
+		"post-update-cmd": [
+			"@prefix-namespaces"
+		]
+	},
+	"config": {
+		"platform": {
+			"php": "8.0"
+		},
+		"allow-plugins": {
+			"composer/installers": true,
+			"dealerdirect/phpcodesniffer-composer-installer": true
+		}
+	},
+	"extra": {
+		"scripts-description": {
+			"makepot": "Generate a .pot file for translation",
+			"makepot-audit": "Generate a .pot file for translation, with an audit of the strings",
+			"phpcs": "Analyze code against the WordPress coding standards with PHP_CodeSniffer",
+			"phpcb": "Fix coding standards warnings/errors automatically with PHP Code Beautifier",
+			"prefix-namespaces": "Download the Strauss phar (if needed) and prefix the shipped Composer packages into vendor-prefixed/"
+		},
+		"strauss": {
+			"target_directory": "vendor-prefixed",
+			"namespace_prefix": "Backcourt\\MNMQuickView\\Vendor",
+			"classmap_prefix": "Backcourt_MNM_Quick_View_Vendor_",
+			"constant_prefix": "BCMNMQV_",
+			"delete_vendor_packages": true,
+			"exclude_from_copy": {
+				"packages": [
+					"composer/installers"
+				]
+			}
+		}
+	}
+}
