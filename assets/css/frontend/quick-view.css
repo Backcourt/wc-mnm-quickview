@@ -55,6 +55,26 @@
 	text-overflow: ellipsis;
 }
 
+/* Small images in the tabular layout only have room for the icon. Screen readers still get the button's label. */
+.mnm_form .mnm_child_products.tabular .wc-mnm-quick-view-button {
+	top: 0.35em;
+	right: 0.35em;
+	bottom: auto;
+	left: auto;
+	padding: 0.4em;
+	transform: none;
+}
+
+.mnm_form .mnm_child_products.tabular .wc-mnm-quick-view-button__text {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+}
+
 .mnm_form .wc-mnm-quick-view-button:hover,
 .mnm_form .wc-mnm-quick-view-button:focus-visible {
 	color: var(--wp--preset--color--base, #fff);
