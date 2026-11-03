@@ -2,7 +2,7 @@
 
 ### What's This?
 
-Mini-extension for [WooCommerce Mix and Match](https://woocommerce.com/products/woocommerce-mix-and-match-products/) that opens a child item's product details in a pop-up when shoppers click the "Quick view" button on its image, or its title. The pop-up has a button to add the product to the container, a quantity stepper, and previous/next buttons to page through the products.
+Mini-extension for [WooCommerce Mix and Match](https://woocommerce.com/products/woocommerce-mix-and-match-products/) that opens a child item's product details in a pop-up when shoppers click the magnifier button in the corner of its image, or its title. The pop-up has a button to add the product to the container, a quantity stepper, and previous/next buttons to page through the products.
 
 It works with the regular Mix and Match add to cart form (jQuery), including forms loaded with ajax such as editing an order or subscription. There's no build step and no React.
 

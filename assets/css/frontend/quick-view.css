@@ -5,7 +5,7 @@
  * @version 3.0.0
  */
 
-/* Quick view button, over the bottom of the child item image. */
+/* Quick view button, a magnifier in the top corner of the child item image. */
 .mnm_form .mnm_child_product_image {
 	position: relative;
 }
@@ -18,24 +18,21 @@
 
 .mnm_form .wc-mnm-quick-view-button {
 	position: absolute;
-	bottom: 0.75em;
-	left: 50%;
+	top: 0.35em;
+	right: 0.35em;
 	z-index: 1;
 	display: inline-flex;
 	align-items: center;
-	gap: 0.4em;
-	max-width: calc(100% - 1.5em);
+	justify-content: center;
 	margin: 0;
-	padding: 0.4em 0.9em;
+	padding: 0.4em;
 	border: 0;
-	border-radius: 999px;
+	border-radius: 50%;
 	font-size: 0.875em;
-	line-height: 1.2;
-	white-space: nowrap;
+	line-height: 1;
 	color: var(--wp--preset--color--contrast, #1e1e1e);
 	background: var(--wp--preset--color--base, #fff);
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-	transform: translateX(-50%);
 	transition: color 0.15s ease, background-color 0.15s ease;
 	cursor: zoom-in;
 }
@@ -50,22 +47,8 @@
 	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M10 3a7 7 0 0 1 5.6 11.2l4.6 4.6-1.4 1.4-4.6-4.6A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm1 2v2h2v2h-2v2H9v-2H7V9h2V7h2z'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
+/* Only the icon shows. Screen readers still get the button's label. */
 .mnm_form .wc-mnm-quick-view-button__text {
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-/* Small images in the tabular layout only have room for the icon. Screen readers still get the button's label. */
-.mnm_form .mnm_child_products.tabular .wc-mnm-quick-view-button {
-	top: 0.35em;
-	right: 0.35em;
-	bottom: auto;
-	left: auto;
-	padding: 0.4em;
-	transform: none;
-}
-
-.mnm_form .mnm_child_products.tabular .wc-mnm-quick-view-button__text {
 	position: absolute;
 	width: 1px;
 	height: 1px;

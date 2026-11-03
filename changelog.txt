@@ -2,7 +2,7 @@
 
 XXXX.XX.XX - Version 3.0.0-beta.1
 * Breaking: Rebuilt without React. The quick view is a native dialog that works with the jQuery add to cart form.
-* New: Open the quick view with a "Quick view" button over the child item's image, or by clicking its title. The old button template is removed, and the image lightbox is turned off.
+* New: Open the quick view with a magnifier button in the corner of the child item's image, or by clicking its title. The old button template is removed, and the image lightbox is turned off.
 * New: "Add to box" button and quantity stepper in the quick view. Quantities are set through the child item's own input, so the form validates and recalculates.
 * New: The add button is disabled when the container is full, including after choosing another package in Mix and Match 3.0.
 * New: Previous and next buttons, and arrow keys, to page through the child items.
