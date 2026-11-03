@@ -124,7 +124,7 @@ class Plugin {
 
 		// The quick view replaces the child item image lightbox.
 		add_filter( 'wc_mnm_add_to_cart_script_parameters', array( $this, 'disable_child_item_lightbox' ) );
-		add_filter( 'wc_mnm_child_item_image_html', array( $this, 'remove_image_zoom_link' ), 10, 3 );
+		add_filter( 'wc_mnm_child_item_image_html', array( $this, 'child_item_image_html' ), 10, 3 );
 
 		// Product details.
 		add_action( 'wc_ajax_' . self::AJAX_ACTION, array( $this, 'get_quick_view' ) );
@@ -266,20 +266,36 @@ class Plugin {
 	}
 
 	/**
-	 * Remove the link to the full size image, the image opens the quick view instead.
+	 * Swap the image's lightbox link for a quick view button.
 	 *
 	 * @param string                    $html       The child item image HTML.
 	 * @param \WC_MNM_Child_Item        $child_item
 	 * @param \WC_Product_Mix_and_Match $container
 	 * @return string
 	 */
-	public function remove_image_zoom_link( $html, $child_item, $container ) {
+	public function child_item_image_html( $html, $child_item, $container ) {
 
-		if ( self::is_enabled( $container ) ) {
-			$html = preg_replace( '#<a [^>]*class="image zoom"[^>]*>(.*?)</a>#s', '$1', $html );
+		if ( ! self::is_enabled( $container ) ) {
+			return $html;
 		}
 
-		return $html;
+		// The lightbox link, whatever classes a theme gave it.
+		$html = preg_replace( '#<a\s[^>]*class="[^"]*\bzoom\b[^"]*"[^>]*>(.*?)</a>#s', '$1', $html );
+
+		$i18n    = self::get_i18n();
+		$product = $child_item->get_product();
+		$title   = $product ? $product->get_name() : '';
+
+		// The script adds aria-haspopup, wp_kses_post() would remove it here.
+		$button = sprintf(
+			'<button type="button" class="wc-mnm-quick-view-button" data-wc-mnm-quick-view aria-label="%1$s"><span class="wc-mnm-quick-view-button__text">%2$s</span></button>',
+			esc_attr( str_replace( '%s', $title, $i18n['openLabel'] ) ),
+			esc_html( $i18n['quickView'] )
+		);
+
+		$position = strrpos( $html, '</figure>' );
+
+		return false === $position ? $html . $button : substr_replace( $html, $button, $position, 0 );
 	}
 
 	/**
@@ -464,6 +480,7 @@ class Plugin {
 			'increase'      => _x( 'Add one more', '[Frontend]', 'wc-mnm-quickview' ),
 			'previous'      => _x( 'Previous product', '[Frontend]', 'wc-mnm-quickview' ),
 			'next'          => _x( 'Next product', '[Frontend]', 'wc-mnm-quickview' ),
+			'quickView'     => _x( 'Quick view', '[Frontend]', 'wc-mnm-quickview' ),
 			/* translators: %s: Child product title. */
 			'openLabel'     => _x( 'Quick view: %s', '[Frontend]', 'wc-mnm-quickview' ),
 		);

@@ -21,7 +21,7 @@
 	/**
 	 * The elements of a child item that open its quick view.
 	 */
-	var TRIGGERS = '.mnm_child_product_images, .woocommerce-loop-product__title a, [data-wc-mnm-quick-view]';
+	var TRIGGERS = '[data-wc-mnm-quick-view], .woocommerce-loop-product__title a';
 
 	/**
 	 * How long the pointer rests on a child item before its details are prefetched, in ms.
@@ -822,7 +822,7 @@
 	 * @return {Element|null}
 	 */
 	function getTrigger( child ) {
-		var $trigger = child.$self.find( '[data-wc-mnm-quick-view-trigger], .woocommerce-loop-product__title a' ).first();
+		var $trigger = child.$self.find( TRIGGERS ).first();
 		return $trigger.length ? $trigger.get( 0 ) : null;
 	}
 
@@ -838,23 +838,15 @@
 	}
 
 	/**
-	 * Make child item images keyboard accessible, and say what the title link does.
+	 * Say that the quick view buttons and title links open a dialog.
 	 *
 	 * @param {Object} container WC_MNM_Container
 	 */
 	function prepareTriggers( container ) {
 		$.each( container.child_items || [], function ( index, child ) {
-			var title = getTitle( child ),
-				label = ( i18n.openLabel || '%s' ).replace( '%s', title );
+			var label = ( i18n.openLabel || '%s' ).replace( '%s', getTitle( child ) );
 
-			// The image becomes a button, the stylesheet adds a magnifier badge to it.
-			child.$self.find( '.mnm_child_product_images' ).not( '[data-wc-mnm-quick-view-trigger]' ).attr( {
-				'data-wc-mnm-quick-view-trigger': '',
-				role: 'button',
-				tabindex: '0',
-				'aria-haspopup': 'dialog',
-				'aria-label': label
-			} );
+			child.$self.find( '[data-wc-mnm-quick-view]' ).attr( 'aria-haspopup', 'dialog' );
 
 			// The title stays a link, so it can still be opened in a new tab, but says what a click does.
 			child.$self.find( '.woocommerce-loop-product__title a' ).not( '[aria-haspopup]' ).attr( {
@@ -865,7 +857,7 @@
 	}
 
 	/**
-	 * Open a quick view from a click on a child item's image or title.
+	 * Open a quick view from a click on a child item's quick view button or title.
 	 *
 	 * Runs in the capture phase so that the image lightbox and product link don't also handle it.
 	 *
@@ -897,28 +889,7 @@
 	}
 
 	/**
-	 * Open a quick view from the keyboard on a child item's image.
-	 *
-	 * @param {KeyboardEvent} event
-	 */
-	function onKeydown( event ) {
-		var trigger, item;
-
-		if ( 'Enter' !== event.key && ' ' !== event.key ) {
-			return;
-		}
-
-		trigger = event.target instanceof window.Element && event.target.matches( '[data-wc-mnm-quick-view-trigger]' ) ? event.target : null;
-		item    = trigger ? findItem( trigger ) : null;
-
-		if ( item ) {
-			event.preventDefault();
-			open( item, trigger );
-		}
-	}
-
-	/**
-	 * Prefetch when the pointer rests on a child item's image or title.
+	 * Prefetch when the pointer rests on a child item's quick view button or title.
 	 *
 	 * @param {PointerEvent} event
 	 */
@@ -956,7 +927,6 @@
 	}
 
 	document.addEventListener( 'click', onClick, true );
-	document.addEventListener( 'keydown', onKeydown );
 	document.addEventListener( 'pointerover', onPointerOver, { passive: true } );
 	document.addEventListener( 'pointerdown', onIntent, { passive: true } );
 	document.addEventListener( 'focusin', onIntent );
