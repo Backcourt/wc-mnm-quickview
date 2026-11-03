@@ -216,8 +216,17 @@ class Plugin {
 				'wc-mnm-quickview',
 				'wc_mnm_quick_view_params',
 				array(
-					'ajax_url' => \WC_AJAX::get_endpoint( self::AJAX_ACTION ),
-					'i18n'     => self::get_i18n(),
+					'ajax_url'    => \WC_AJAX::get_endpoint( self::AJAX_ACTION ),
+					/**
+					 * Whether to load every child item's details once the page is idle, so the quick view opens
+					 * instantly. When false, they load on the first hover or focus of a child item.
+					 *
+					 * @since 3.0.0
+					 *
+					 * @param bool $preload
+					 */
+					'preload_all' => (bool) apply_filters( 'wc_mnm_quick_view_preload_all', true ),
+					'i18n'        => self::get_i18n(),
 				)
 			);
 		}
@@ -314,11 +323,43 @@ class Plugin {
 			wp_send_json_error( null, 404 );
 		}
 
-		$child_item = $child_id ? $container->get_child_item_by_product_id( $child_id ) : false;
+		// One item, or all of them in one go, so each opening doesn't pay for loading WordPress.
+		if ( $child_id ) {
+			$child_item = $container->get_child_item_by_product_id( $child_id );
 
-		if ( ! $child_item || ! $child_item->get_product() ) {
-			wp_send_json_error( null, 404 );
+			if ( ! $child_item || ! $child_item->get_product() ) {
+				wp_send_json_error( null, 404 );
+			}
+
+			wp_send_json_success(
+				array(
+					'html' => $this->get_content_html( $child_item ),
+				)
+			);
 		}
+
+		$items = array();
+
+		foreach ( $container->get_child_items() as $child_item ) {
+			if ( $child_item->get_product() && $child_item->is_visible() ) {
+				$items[ $child_item->get_product_id() ] = $this->get_content_html( $child_item );
+			}
+		}
+
+		wp_send_json_success(
+			array(
+				'items' => (object) $items,
+			)
+		);
+	}
+
+	/**
+	 * Get a child item's details HTML.
+	 *
+	 * @param \WC_MNM_Child_Item $child_item
+	 * @return string
+	 */
+	protected function get_content_html( $child_item ) {
 
 		ob_start();
 
@@ -329,11 +370,7 @@ class Plugin {
 			$this->plugin_path( 'templates/' )
 		);
 
-		wp_send_json_success(
-			array(
-				'html' => ob_get_clean(),
-			)
-		);
+		return ob_get_clean();
 	}
 
 	/*-----------------------------------------------------------------------------------*/

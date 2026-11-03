@@ -34,6 +34,7 @@ add_filter( 'wc_mnm_quick_view_i18n', function( $i18n ) {
 
 * `wc_mnm_has_quick_view` - return false to turn the quick view off, gets the container product when known.
 * `wc_mnm_quick_view_template_args` - change the data passed to the content template.
+* `wc_mnm_quick_view_preload_all` - return false to stop loading every child item's details once the page is idle. They then load on the first hover or focus of a child item, in one request per container.
 * `wc_mnm_quick_view_before_summary` / `wc_mnm_quick_view_after_summary` - add to the product details.
 * The product details come from `templates/single-product/mnm/quick-view-content.php`, which can be overridden in your theme at `yourtheme/woocommerce/single-product/mnm/quick-view-content.php`.
 

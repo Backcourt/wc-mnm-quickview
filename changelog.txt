@@ -7,7 +7,7 @@ XXXX.XX.XX - Version 3.0.0-beta.1
 * New: The add button is disabled when the container is full, including after choosing another package in Mix and Match 3.0.
 * New: Previous and next buttons, and arrow keys, to page through the child items.
 * New: Keyboard support. Escape closes, and focus returns to the item.
-* New: Product details load on demand from the mnm_get_child_item_quick_view wc-ajax endpoint, and are prefetched on hover or focus.
+* New: Product details for all of a container's items load in one request from the mnm_get_child_item_quick_view wc-ajax endpoint, once the page is idle or on the first hover or focus, so the quick view opens instantly. Filter wc_mnm_quick_view_preload_all to only load on hover or focus.
 * New: Customize the add and remove button text per product, or with the wc_mnm_quick_view_add_to_box_text and wc_mnm_quick_view_remove_from_box_text filters.
 * New: Works in forms loaded with ajax, ex: editing an order item or a subscription.
 * Update: Requires Mix and Match 2.8.0 and WooCommerce 8.0.

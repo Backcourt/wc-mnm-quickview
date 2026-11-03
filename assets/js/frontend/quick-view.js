@@ -33,6 +33,11 @@
 	 */
 	var cache = {};
 
+	/**
+	 * Requests for all of a container's details, keyed by container ID. Each is a jQuery promise of { itemId: html }.
+	 */
+	var batches = {};
+
 	var dialog     = null,
 		$dialog    = null,
 		openerEl   = null, // The element that opened the modal, focus returns to it on close.
@@ -416,7 +421,48 @@
 	}
 
 	/**
+	 * Request details from the server.
+	 *
+	 * @param {Object} data Query args.
+	 * @return {Object} jQuery promise of the response data.
+	 */
+	function request( data ) {
+		return $.ajax( {
+			url: params.ajax_url,
+			type: 'GET',
+			dataType: 'json',
+			data: data
+		} ).then( function ( response ) {
+			return response && response.success && response.data ? response.data : $.Deferred().reject().promise();
+		} );
+	}
+
+	/**
+	 * Fetch all of a container's details in one request, once.
+	 *
+	 * @param {number} containerId Container ID.
+	 * @return {Object} jQuery promise of the details' HTML, keyed by child product ID.
+	 */
+	function fetchAll( containerId ) {
+		if ( ! batches[ containerId ] ) {
+			batches[ containerId ] = request( { container_id: containerId } ).then( function ( data ) {
+				return data.items || {};
+			} );
+
+			// Let a later hover or click try again.
+			batches[ containerId ].fail( function () {
+				delete batches[ containerId ];
+			} );
+		}
+
+		return batches[ containerId ];
+	}
+
+	/**
 	 * Fetch a child item's details, once.
+	 *
+	 * Comes from the request for all of the container's details, or one for just this item if that fails or
+	 * doesn't have it.
 	 *
 	 * @param {number} containerId Container ID.
 	 * @param {number} itemId      Child product ID.
@@ -424,42 +470,44 @@
 	 */
 	function fetchDetails( containerId, itemId ) {
 		var key = containerId + ':' + itemId,
-			request;
+			promise;
 
 		if ( cache[ key ] ) {
 			return cache[ key ];
 		}
 
-		request = $.ajax( {
-			url: params.ajax_url,
-			type: 'GET',
-			dataType: 'json',
-			data: {
-				container_id: containerId,
-				child_id: itemId
-			}
-		} ).then( function ( response ) {
-			if ( ! response || ! response.success || ! response.data || ! response.data.html ) {
-				return $.Deferred().reject().promise();
-			}
+		function single() {
+			return request( { container_id: containerId, child_id: itemId } ).then( function ( data ) {
+				return data.html || $.Deferred().reject().promise();
+			} );
+		}
 
-			preloadImage( response.data.html );
+		promise = fetchAll( containerId ).then(
+			function ( items ) {
+				return items[ itemId ] || single();
+			},
+			single
+		);
 
-			return response.data.html;
+		promise = promise.then( function ( html ) {
+			preloadImage( html );
+			return html;
 		} );
 
 		// Let a later hover or click try again.
-		request.fail( function () {
+		promise.fail( function () {
 			delete cache[ key ];
 		} );
 
-		cache[ key ] = request;
+		cache[ key ] = promise;
 
-		return request;
+		return promise;
 	}
 
 	/**
 	 * Prefetch a child item's details, ex: while the pointer rests on it.
+	 *
+	 * Loads the whole container, so the next items open instantly too.
 	 *
 	 * @param {Element} trigger An element that opens the quick view.
 	 */
@@ -468,6 +516,27 @@
 
 		if ( item ) {
 			fetchDetails( parseInt( item.container.container_id, 10 ), parseInt( item.child.mnm_item_id, 10 ) );
+		}
+	}
+
+	/**
+	 * Load all of a container's details when the browser is idle.
+	 *
+	 * @param {Object} container WC_MNM_Container
+	 */
+	function preloadAll( container ) {
+		var run = function () {
+			fetchAll( parseInt( container.container_id, 10 ) );
+		};
+
+		if ( ! params.preload_all ) {
+			return;
+		}
+
+		if ( window.requestIdleCallback ) {
+			window.requestIdleCallback( run, { timeout: 3000 } );
+		} else {
+			window.setTimeout( run, 1000 );
 		}
 	}
 
@@ -935,6 +1004,7 @@
 		// Forms initialized later, ex: loaded with ajax to edit an order or subscription.
 		.on( 'wc-mnm-initialized', '.mnm_form', function ( event, container ) {
 			prepareTriggers( container );
+			preloadAll( container );
 			render();
 		} )
 		// Keep the modal in step with the form.
@@ -948,6 +1018,7 @@
 	$( function () {
 		$.each( getContainers(), function ( index, container ) {
 			prepareTriggers( container );
+			preloadAll( container );
 		} );
 	} );
 
