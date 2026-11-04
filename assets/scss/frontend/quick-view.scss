@@ -1,0 +1,355 @@
+/**
+ * Mix and Match child item quick view.
+ *
+ * @since   3.0.0
+ * @version 3.0.0
+ */
+
+$base:     var(--wp--preset--color--base, #fff);
+$contrast: var(--wp--preset--color--contrast, #1e1e1e);
+$magnifier: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M10 3a7 7 0 0 1 5.6 11.2l4.6 4.6-1.4 1.4-4.6-4.6A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm1 2v2h2v2h-2v2H9v-2H7V9h2V7h2z'/%3E%3C/svg%3E");
+
+@mixin focus-ring( $color: currentColor ) {
+	outline: 2px solid $color;
+	outline-offset: 2px;
+}
+
+/*-----------------------------------------------------------------*/
+/*  Quick view button, a magnifier in the top corner of the image. */
+/*-----------------------------------------------------------------*/
+
+.mnm_form {
+
+	.mnm_child_product_image {
+		position: relative;
+
+		/* The image itself doesn't open anything, in case a theme still prints the lightbox link. */
+		a.zoom {
+			pointer-events: none;
+			cursor: default;
+		}
+	}
+
+	.wc-mnm-quick-view-button {
+		position: absolute;
+		top: 0.35em;
+		right: 0.35em;
+		z-index: 1;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		margin: 0;
+		padding: 0.4em;
+		border: 0;
+		border-radius: 50%;
+		font-size: 0.875em;
+		line-height: 1;
+		color: $contrast;
+		background: $base;
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+		transition: color 0.15s ease, background-color 0.15s ease;
+		cursor: zoom-in;
+
+		&::before {
+			content: "";
+			flex: none;
+			width: 1.15em;
+			height: 1.15em;
+			background: currentColor;
+			-webkit-mask: $magnifier center / contain no-repeat;
+			mask: $magnifier center / contain no-repeat;
+		}
+
+		&:hover,
+		&:focus-visible {
+			color: $base;
+			background: $contrast;
+		}
+
+		&:focus-visible {
+			@include focus-ring( $contrast );
+		}
+
+		/* Only the icon shows. Screen readers still get the button's label. */
+		&__text {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			margin: -1px;
+			overflow: hidden;
+			clip: rect(0, 0, 0, 0);
+			white-space: nowrap;
+		}
+	}
+
+	/* The lightbox's magnifier, if PhotoSwipe was set up by something else. */
+	.mnm_child_product_images .woocommerce-product-gallery__trigger {
+		display: none;
+	}
+}
+
+/*-----------------------------------------------------------------*/
+/*  Modal                                                          */
+/*-----------------------------------------------------------------*/
+
+html:has(.wc-mnm-quick-view[open]) {
+	overflow: hidden;
+}
+
+.wc-mnm-quick-view {
+	--wc-mnm-quick-view-gap: 1.5em;
+	width: min(960px, calc(100vw - 2em));
+	max-width: none;
+	max-height: calc(100vh - 2em);
+	max-height: calc(100dvh - 2em);
+	padding: 0;
+	border: 0;
+	border-radius: 4px;
+	color: inherit;
+	background: $base;
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+	overflow: hidden;
+
+	&[open] {
+		display: flex;
+		flex-direction: column;
+	}
+
+	&::backdrop {
+		background: rgba(0, 0, 0, 0.6);
+	}
+
+	[hidden] {
+		display: none !important;
+	}
+
+	&__inner {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		flex: 1 1 auto;
+		min-height: 0;
+	}
+
+	&__header {
+		position: absolute;
+		top: 0.5em;
+		right: 0.5em;
+		z-index: 1;
+		display: flex;
+		align-items: center;
+		gap: 0.5em;
+	}
+
+	&__nav {
+		display: flex;
+		gap: 0.25em;
+	}
+
+	&__close,
+	&__prev,
+	&__next {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 2em;
+		height: 2em;
+		padding: 0;
+		border: 0;
+		border-radius: 50%;
+		font-size: 1.25em;
+		line-height: 1;
+		color: inherit;
+		background: $base;
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+		cursor: pointer;
+
+		&:focus-visible {
+			@include focus-ring;
+		}
+	}
+
+	&__prev:disabled,
+	&__next:disabled {
+		opacity: 0.35;
+		cursor: default;
+	}
+
+	&__content {
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow-y: auto;
+		padding: var(--wc-mnm-quick-view-gap);
+		padding-top: 3.5em;
+
+		@media (min-width: 768px) {
+			padding-top: var(--wc-mnm-quick-view-gap);
+		}
+	}
+
+	&.is-loading &__content {
+		min-height: 12em;
+		background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.04), transparent) 0 0 / 200% 100%;
+		animation: wc-mnm-quick-view-loading 1.2s linear infinite;
+	}
+
+	&__error {
+		margin: var(--wc-mnm-quick-view-gap);
+	}
+
+	&__product {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--wc-mnm-quick-view-gap);
+
+		/* Themes add clearfix pseudo elements to .product, they would take a grid cell. */
+		&::before,
+		&::after {
+			display: none !important;
+		}
+
+		@media (min-width: 768px) {
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		}
+	}
+
+	&__image {
+		margin: 0;
+
+		img {
+			display: block;
+			width: 100%;
+			height: auto;
+		}
+	}
+
+	&__thumbnails {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5em;
+		margin: 0.5em 0 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	&__thumbnail {
+		width: 4em;
+		padding: 0;
+		border: 2px solid transparent;
+		background: none;
+		cursor: pointer;
+		opacity: 0.7;
+
+		&.is-active,
+		&:hover,
+		&:focus-visible {
+			border-color: currentColor;
+			opacity: 1;
+		}
+
+		&:focus-visible {
+			@include focus-ring;
+		}
+
+		img {
+			display: block;
+			width: 100%;
+			height: auto;
+		}
+	}
+
+	&__summary {
+		float: none;
+		width: auto;
+		margin: 0;
+
+		/* Room for the header buttons. */
+		@media (min-width: 768px) {
+			padding-top: 2em;
+		}
+
+		.product_title {
+			margin-top: 0;
+		}
+
+		h3 {
+			font-size: 1.1em;
+		}
+	}
+
+	&__footer {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1em;
+		padding: 1em var(--wc-mnm-quick-view-gap);
+		padding-bottom: calc(1em + env(safe-area-inset-bottom));
+		border-top: 1px solid rgba(0, 0, 0, 0.1);
+	}
+
+	&__status {
+		flex: 1 1 12em;
+
+		p {
+			margin: 0;
+			font-weight: 600;
+		}
+	}
+
+	&__messages {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		font-size: 0.9em;
+
+		&:empty {
+			display: none;
+		}
+	}
+
+	&__actions {
+		display: flex;
+		align-items: center;
+		gap: 0.5em;
+		margin-left: auto;
+	}
+
+	&__stepper {
+		display: flex;
+		align-items: center;
+		gap: 0.5em;
+
+		.button {
+			min-width: 2.5em;
+		}
+	}
+
+	&__quantity {
+		min-width: 2em;
+		text-align: center;
+		font-weight: 600;
+	}
+
+	.button.disabled,
+	.button:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.mnm_form .wc-mnm-quick-view-button {
+		transition: none;
+	}
+
+	.wc-mnm-quick-view.is-loading .wc-mnm-quick-view__content {
+		animation: none;
+	}
+}
+
+@keyframes wc-mnm-quick-view-loading {
+	to {
+		background-position: -200% 0;
+	}
+}

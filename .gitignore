@@ -7,15 +7,17 @@ nbproject/private/
 .settings*
 sftp-config.json
 .idea
+*.bak
 
 # Grunt
-node_modules/
-deploy/
-build/
+/node_modules/
+/deploy/
+/build/
 npm-debug.log
 
 # Sass
 .sass-cache/
+*.css.map
 
 # OS X metadata
 .DS_Store
@@ -31,13 +33,11 @@ tmp/
 
 # Logs
 logs/
-package-lock.json
 
-# Compiled assets
-assets/dist/
+# Compiled assets, built from assets/scss/ and assets/js/
+assets/css/
 assets/js/frontend/*.min.js
 assets/js/backend/*.min.js
-assets/css/
 languages/
 none
 
@@ -45,4 +45,6 @@ none
 .vscode/
 
 # Composer
-vendor/
+/vendor/*
+/vendor-prefixed/*
+bin/strauss.phar

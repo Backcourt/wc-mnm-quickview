@@ -1,6 +1,0 @@
-Todo
-
-1. Show discounted prices from container in modal
-2. Hide prices for static-priced containers
-3. Add selection to container from modal
-

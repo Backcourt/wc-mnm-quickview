@@ -3,11 +3,10 @@
 	"curly": true,
 	"eqeqeq": true,
 	"eqnull": true,
-	"es3": true,
+	"esversion": 5,
 	"expr": true,
 	"immed": true,
 	"noarg": true,
-	"onevar": true,
 	"quotmark": "single",
 	"trailing": true,
 	"undef": true,
@@ -22,6 +21,6 @@
 		"jQuery": false,
 		"JSON": false,
 		"wp": false,
-		"WC_MNM_QUICKVIEW_PARAMS": false
+		"wc_mnm_quick_view_params": false
 	}
 }

@@ -1,6 +1,6 @@
 module.exports = function(grunt) {
 
-	const sass = require( 'node-sass' );
+	const sass = require( 'sass' );
 	require( 'load-grunt-tasks' )( grunt );
 
 	// Project configuration.
@@ -22,24 +22,15 @@ module.exports = function(grunt) {
 			compile: {
 				options: {
 					implementation: sass,
-					outputStyle: 'expanded'
+					sourceMap: false
 				},
-				files: [
-				{
+				files: [{
 					expand: true,
-					cwd: '<%= dirs.scss %>/admin/',
+					cwd: '<%= dirs.scss %>/frontend/',
 					src: ['*.scss'],
-					dest: '<%= dirs.css %>/admin/',
+					dest: '<%= dirs.css %>/frontend/',
 					ext: '.css'
-				},
-				{
-					expand: true,
-					cwd: '<%= dirs.scss %>/frontend',
-					src: ['*.scss'],
-					dest: '<%= dirs.css %>/frontend',
-					ext: '.css'
-				}
-				]
+				}]
 			}
 		},
 
@@ -153,10 +144,9 @@ module.exports = function(grunt) {
 		watch: {
 			css: {
 				files: [
-				'<%= dirs.scss %>/admin/*.scss',
-				'<%= dirs.scss %>/frontend/*.scss'
+				'<%= dirs.scss %>/**/*.scss'
 				],
-				tasks: ['sass', 'rtlcss', 'postcss', 'cssmin']
+				tasks: ['css']
 			},
 			js: {
 				files: [
@@ -208,6 +198,8 @@ module.exports = function(grunt) {
 				'!composer.json',
 				'!composer.lock',
 				'!vendor/**',
+				'!bin/**',
+				'!assets/scss/**',
 				'!none',
 				'!includes/compatibility/backcompatibility/**'
 				],
@@ -239,7 +231,7 @@ module.exports = function(grunt) {
 			},
 			target: {
 				files: {
-					src: ['*.php', '**/*.php', '**/**/*.php', '!node_modules/**', '!deploy/**']
+					src: ['*.php', '**/*.php', '**/**/*.php', '!node_modules/**', '!deploy/**', '!vendor/**', '!vendor-prefixed/**', '!bin/**']
 				}
 			}
 		},
