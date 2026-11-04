@@ -2,11 +2,11 @@
 /**
  * Plugin Name: WC Mix and Match - Quickview
  * Plugin URI: https://github.com/backcourt/wc-mnm-quickview
- * Update URI: https://www.backcourt.io
  * Version: 3.0.0-beta.1
  * Description: Open a child item's product details in a pop-up, with a button to add it to the container.
  * Author: Kathy Darling
- * Author URI: http://kathyisawesome.com/
+ * Author URI: http://www.backcourt.io/
+ *
  * Text Domain: wc-mnm-quickview
  * Domain Path: /languages
  *
@@ -15,10 +15,10 @@
  * Requires PHP: 8.0
  * Requires Plugins: woocommerce, woocommerce-mix-and-match-products
  *
- * WC requires at least: 8.0.0
- * WC tested up to: 10.3.0
- *
- * MNM requires at least: 2.8.0
+ * WC requires at least: 8.2.0
+ * WC tested up to: 11.2.0
+ * 
+ * Update URI: https://www.backcourt.io/
  *
  * Copyright: © 2020 Kathy Darling
  * License: GNU General Public License v3.0
