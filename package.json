@@ -1,7 +1,7 @@
 {
   "title": "WooCommerce Mix and Match Products - Quickview",
   "name": "wc-mnm-quickview",
-  "version": "3.0.0-beta.1",
+  "version": "3.0.0",
   "description": "Open a Mix and Match child item's product details in a pop-up, with a button to add it to the container.",
   "main": "Gruntfile.js",
   "license": "GPL-3.0",

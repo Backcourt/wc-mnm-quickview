@@ -4,7 +4,7 @@ Tags: woocommerce, mix and match, quick view
 Requires at least: 6.4
 Tested up to: 6.9
 Requires PHP: 8.0
-Stable tag: 3.0.0-beta.1
+Stable tag: 3.0.0
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
