@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WC Mix and Match - Quickview
  * Plugin URI: https://github.com/backcourt/wc-mnm-quickview
- * Version: 3.0.0-beta.1
+ * Version: 3.0.0
  * Description: Open a child item's product details in a pop-up, with a button to add it to the container.
  * Author: Kathy Darling
  * Author URI: http://www.backcourt.io/
@@ -50,7 +50,7 @@ class Plugin {
 	/**
 	 * Plugin version.
 	 */
-	const VERSION = '3.0.0-beta.1';
+	const VERSION = '3.0.0';
 
 	/**
 	 * Minimum versions.
