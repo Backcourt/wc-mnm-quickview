@@ -1,1025 +1,868 @@
 /**
  * Mix and Match child item quick view.
  *
- * Clicking a child item's image or title opens its product details in a native <dialog>, with a
- * button to add it to the container. The details are loaded from the server on demand, and
- * prefetched when the pointer rests on, or keyboard focus reaches, a child item's image or title.
+ * Clicking a child item's quick view button or title opens its product details in a native <dialog>,
+ * with buttons to add it to the container. The details are loaded from the server, all of a
+ * container's at once when the page is idle, or when the pointer rests on, or keyboard focus reaches,
+ * a child item's quick view button or title.
  *
- * The jQuery add to cart form (add-to-cart-mnm.js) stays the source of truth: quantities are set by
- * changing the child item's own quantity input and triggering "change", so the form validates and
- * recalculates as if the shopper had changed it.
+ * Built on the Mix and Match container store (@wc-mix-and-match/container): the modal reads the child
+ * item's state from it and changes quantities with its actions, so it doesn't depend on how the form
+ * itself is rendered.
+ *
+ * The modal markup is printed once in the footer, see Plugin::print_modal(). Clicks and hovers are
+ * listened to on the document, so the child items of forms loaded with ajax open it too.
  *
  * @since   3.0.0
  * @version 3.0.0
  */
-( function ( $, window, document ) {
-	'use strict';
+import * as interactivity from '@wordpress/interactivity';
+import '@wc-mix-and-match/container';
 
-	var params = window.wc_mnm_quick_view_params || {},
-		i18n   = params.i18n || {};
+const { store, getElement } = interactivity;
 
-	/**
-	 * The elements of a child item that open its quick view.
-	 */
-	var TRIGGERS = '[data-wc-mnm-quick-view], .woocommerce-loop-product__title a';
+// WordPress 6.8+ runs event handlers asynchronously, unless they need the event right away.
+const withSyncEvent = interactivity.withSyncEvent || ( ( callback ) => callback );
 
-	/**
-	 * How long the pointer rests on a child item before its details are prefetched, in ms.
-	 */
-	var HOVER_DELAY = 80;
+const NAMESPACE = 'wc-mnm-quickview';
 
-	/**
-	 * Loaded and loading details, keyed by "containerId:itemId". Each is a jQuery promise of the HTML.
-	 */
-	var cache = {};
+/**
+ * The elements of a child item that open its quick view.
+ */
+const TRIGGERS = '[data-wc-mnm-quick-view], .woocommerce-loop-product__title a';
 
-	/**
-	 * Requests for all of a container's details, keyed by container ID. Each is a jQuery promise of { itemId: html }.
-	 */
-	var batches = {};
+/**
+ * How long the pointer rests on a child item before its details are prefetched, in ms.
+ */
+const HOVER_DELAY = 80;
 
-	var dialog     = null,
-		$dialog    = null,
-		openerEl   = null, // The element that opened the modal, focus returns to it on close.
-		current    = null, // { containerId, itemId, itemEl }
-		messages   = [], // Messages from the last change of quantity.
-		hoverTimer = null,
-		requestId  = 0;
+/**
+ * Item types whose quantity can't be changed from the modal.
+ */
+const FIXED_TYPES = [ 'unavailable', 'hidden' ];
 
-	/*-----------------------------------------------------------------*/
-	/*  Container helpers                                              */
-	/*-----------------------------------------------------------------*/
+const { state: mnm, actions: mnmActions } = store( 'wc-mix-and-match/container' );
 
-	/**
-	 * Get the initialized containers that are on the page.
-	 *
-	 * @return {Array} WC_MNM_Container objects.
-	 */
-	function getContainers() {
-		var scripts = window.wc_mnm_scripts || {};
+/*-----------------------------------------------------------------*/
+/*  Not reactive on purpose                                        */
+/*-----------------------------------------------------------------*/
 
-		return Object.keys( scripts ).map( function ( key ) {
-			return scripts[ key ];
-		} ).filter( function ( container ) {
-			return container && container.is_initialized && container.$mnm_form && container.$mnm_form.length && document.documentElement.contains( container.$mnm_form.get( 0 ) );
-		} );
-	}
+/**
+ * Loaded and loading details, keyed by "containerId:productId". Each is a promise of the HTML.
+ *
+ * @type {Map<string, Promise<string>>}
+ */
+const cache = new Map();
 
-	/**
-	 * Find the container and child item an element belongs to.
-	 *
-	 * @param {Element} el Element inside a child item.
-	 * @return {Object|null} { container, child }
-	 */
-	function findItem( el ) {
-		var containers = getContainers(),
-			i, j, container, child;
+/**
+ * Requests for all of a container's details, keyed by container ID. Each is a promise of { productId: html }.
+ *
+ * @type {Map<number, Promise<Object>>}
+ */
+const batches = new Map();
 
-		for ( i = 0; i < containers.length; i++ ) {
-			container = containers[ i ];
+/**
+ * Containers whose details are already scheduled to preload.
+ *
+ * @type {Set<number>}
+ */
+const preloaded = new Set();
 
-			if ( ! container.$mnm_form.get( 0 ).contains( el ) ) {
-				continue;
-			}
+let dialogEl     = null;
+let openerEl     = null; // The element that opened the modal, focus returns to it on close.
+let siblings     = { prev: null, next: null }; // Item data, see getItemData().
+let pendingFocus = ''; // add|prev|next, where focus goes once the modal re-renders.
+let hoverTimer   = null;
+let requestId    = 0;
 
-			for ( j = 0; j < container.child_items.length; j++ ) {
-				child = container.child_items[ j ];
+/*-----------------------------------------------------------------*/
+/*  Child items in the page                                        */
+/*-----------------------------------------------------------------*/
 
-				if ( child.$self && child.$self.get( 0 ) && child.$self.get( 0 ).contains( el ) ) {
-					return { container: container, child: child };
-				}
-			}
-		}
+/**
+ * IDs can be read from data attributes as strings or numbers.
+ *
+ * @param {number|string} id
+ * @return {number}
+ */
+const toId = ( id ) => parseInt( id, 10 ) || 0;
 
+/**
+ * Whether an element is shown, ex: not hidden by a filter.
+ *
+ * @param {Element} el
+ * @return {boolean}
+ */
+const isVisible = ( el ) => ( el.checkVisibility ? el.checkVisibility() : el.getClientRects().length > 0 );
+
+/**
+ * Get a child item's name from the container store.
+ *
+ * WordPress 6.5 and 6.6 don't print the store's server data, so fall back to the title in the form.
+ *
+ * @param {number}       containerId
+ * @param {number}       productId
+ * @param {Element|null} itemEl      The child item in the form, .mnm_item.
+ * @return {string}
+ */
+const getName = ( containerId, productId, itemEl ) => {
+	const container = mnm.containers[ containerId ];
+	const item      = container && container.items[ productId ];
+	const titleEl   = itemEl && itemEl.querySelector( '.woocommerce-loop-product__title' );
+
+	return ( item && item.name ) || ( titleEl ? titleEl.textContent.trim() : '' );
+};
+
+/**
+ * Read a child item's IDs from the form, plus the container's quick view button text from its button.
+ *
+ * @param {Element} itemEl A child item, .mnm_item.
+ * @return {Object|null} { containerId, productId, title, addToBox, removeFromBox, trigger, itemEl, formEl }
+ */
+const getItemData = ( itemEl ) => {
+	const formEl      = itemEl.closest( 'form' );
+	const cartEl      = formEl && formEl.querySelector( '[data-container_id]' );
+	const button      = itemEl.querySelector( '[data-wc-mnm-quick-view]' );
+	const containerId = toId( cartEl ? cartEl.getAttribute( 'data-container_id' ) : 0 );
+	const productId   = toId( itemEl.getAttribute( 'data-mnm_item_id' ) );
+	let labels        = {};
+
+	if ( ! containerId || ! productId ) {
 		return null;
 	}
 
-	/**
-	 * Get the container and child item that are open in the modal.
-	 *
-	 * Looked up each time, a form loaded with ajax can be re-initialized while the modal is open.
-	 *
-	 * @return {Object|null} { container, child }
-	 */
-	function getCurrent() {
-		var containers, i, j, child;
-
-		if ( ! current ) {
-			return null;
-		}
-
-		// The same element, still in its form.
-		if ( current.itemEl && document.documentElement.contains( current.itemEl ) ) {
-			return findItem( current.itemEl );
-		}
-
-		// Otherwise the same item in a re-rendered form.
-		containers = getContainers();
-
-		for ( i = 0; i < containers.length; i++ ) {
-			if ( parseInt( containers[ i ].container_id, 10 ) !== current.containerId ) {
-				continue;
-			}
-
-			for ( j = 0; j < containers[ i ].child_items.length; j++ ) {
-				child = containers[ i ].child_items[ j ];
-
-				if ( parseInt( child.mnm_item_id, 10 ) === current.itemId ) {
-					current.itemEl = child.$self.get( 0 );
-					return { container: containers[ i ], child: child };
-				}
-			}
-		}
-
-		return null;
-	}
-
-	/**
-	 * Get a child item's input type.
-	 *
-	 * NB: Not child.get_type(), before Mix and Match 3.0 it reports any quantity input hidden with CSS as "hidden".
-	 *
-	 * @param {Object} child WC_MNM_Child_Item
-	 * @return {string} unavailable|checkbox|select|hidden|input
-	 */
-	function getType( child ) {
-		var $qty = child.$mnm_item_qty;
-
-		if ( ! $qty || ! $qty.length ) {
-			return 'unavailable'; // Out of stock and unpurchasable items have no quantity input.
-		}
-
-		if ( $qty.is( ':checkbox' ) ) {
-			return 'checkbox';
-		}
-
-		if ( $qty.is( 'select' ) ) {
-			return 'select';
-		}
-
-		if ( $qty.is( '[type="hidden"]' ) ) {
-			return 'hidden'; // Fixed quantity, min = max = value.
-		}
-
-		return 'input';
-	}
-
-	/**
-	 * Read a numeric attribute from a quantity input.
-	 *
-	 * @param {Object} $input jQuery quantity input.
-	 * @param {string} attr   Attribute name.
-	 * @return {number} The value, or 0 when missing.
-	 */
-	function getAttr( $input, attr ) {
-		var value = parseFloat( $input.attr( attr ) );
-		return isNaN( value ) ? 0 : value;
-	}
-
-	/**
-	 * Get a child item's quantity.
-	 *
-	 * @param {Object} child WC_MNM_Child_Item
-	 * @return {number}
-	 */
-	function getQuantity( child ) {
-		var $qty = child.$mnm_item_qty,
-			qty;
-
-		switch ( getType( child ) ) {
-			case 'unavailable':
-				return 0;
-			case 'checkbox':
-				qty = $qty.is( ':checked' ) ? $qty.val() : 0;
-				break;
-			default:
-				qty = $qty.val();
-		}
-
-		return parseInt( qty, 10 ) || 0;
-	}
-
-	/**
-	 * Get the state of the open child item.
-	 *
-	 * @param {Object} container WC_MNM_Container
-	 * @param {Object} child     WC_MNM_Child_Item
-	 * @return {Object}
-	 */
-	function getItemState( container, child ) {
-		var $qty     = child.$mnm_item_qty,
-			type     = getType( child ),
-			quantity = getQuantity( child ),
-			size     = parseInt( container.api.get_container_size(), 10 ) || 0,
-			maxSize  = parseInt( container.api.get_max_container_size(), 10 ) || 0, // 0 is unlimited.
-			isFull   = maxSize > 0 && size >= maxSize,
-			data     = {
-				type: type,
-				quantity: quantity,
-				isSelected: quantity > 0,
-				isFull: isFull,
-				canIncrease: false,
-				canDecrease: false
-			},
-			min, max, step;
-
-		switch ( type ) {
-			case 'unavailable':
-			case 'hidden':
-				break;
-			case 'checkbox':
-				data.canIncrease = ! data.isSelected && ( ! maxSize || size + ( parseInt( $qty.val(), 10 ) || 1 ) <= maxSize );
-				data.canDecrease = data.isSelected;
-				break;
-			case 'select':
-				max  = Math.max.apply( null, $qty.find( 'option' ).map( function () { return parseInt( this.value, 10 ) || 0; } ).get().concat( 0 ) );
-				data.canIncrease = ! isFull && quantity < max;
-				data.canDecrease = quantity > ( parseInt( $qty.find( 'option' ).first().val(), 10 ) || 0 );
-				break;
-			default:
-				min  = getAttr( $qty, 'min' );
-				max  = getAttr( $qty, 'max' ); // 0 is unlimited.
-				step = getAttr( $qty, 'step' ) || 1;
-
-				data.canIncrease = ! isFull && ( ! max || quantity + step <= max );
-				data.canDecrease = quantity > min;
-		}
-
-		return data;
-	}
-
-	/**
-	 * Set a child item's quantity through its own input, so the form validates and recalculates.
-	 *
-	 * @param {Object} child    WC_MNM_Child_Item
-	 * @param {number} quantity The new quantity.
-	 */
-	function setQuantity( child, quantity ) {
-		var $qty = child.$mnm_item_qty,
-			$option;
-
-		switch ( getType( child ) ) {
-			case 'unavailable':
-			case 'hidden':
-				return;
-			case 'checkbox':
-				$qty.prop( 'checked', quantity > 0 );
-				break;
-			case 'select':
-				// The closest option at or below the quantity.
-				$option = $qty.find( 'option' ).filter( function () {
-					return ( parseInt( this.value, 10 ) || 0 ) <= quantity;
-				} ).last();
-				$qty.val( $option.length ? $option.val() : $qty.find( 'option' ).first().val() );
-				break;
-			default:
-				$qty.val( quantity );
-		}
-
-		$qty.trigger( 'change' );
-
-		// The child item may have corrected the quantity, ex: when there isn't room. Copy, it clears its messages after a moment.
-		messages = 'function' === typeof child.get_messages ? child.get_messages().slice( 0 ) : [];
-	}
-
-	/**
-	 * Step a child item's quantity up or down.
-	 *
-	 * @param {number} direction 1 or -1.
-	 */
-	function step( direction ) {
-		var item = getCurrent(),
-			type, state, $qty, $options, values, index, stepSize;
-
-		if ( ! item ) {
-			return;
-		}
-
-		type  = getType( item.child );
-		state = getItemState( item.container, item.child );
-		$qty  = item.child.$mnm_item_qty;
-
-		if ( ( direction > 0 && ! state.canIncrease ) || ( direction < 0 && ! state.canDecrease ) ) {
-			return;
-		}
-
-		switch ( type ) {
-			case 'checkbox':
-				setQuantity( item.child, direction > 0 ? 1 : 0 );
-				break;
-			case 'select':
-				$options = $qty.find( 'option' );
-				values   = $options.map( function () { return parseInt( this.value, 10 ) || 0; } ).get();
-				index    = values.indexOf( state.quantity );
-				index    = Math.min( Math.max( index + direction, 0 ), values.length - 1 );
-				setQuantity( item.child, values[ index ] );
-				break;
-			default:
-				stepSize = getAttr( $qty, 'step' ) || 1;
-				setQuantity( item.child, Math.max( state.quantity + ( direction * stepSize ), getAttr( $qty, 'min' ) ) );
-		}
-
-		render();
-	}
-
-	/**
-	 * Get the container's button text, set per product on the form.
-	 *
-	 * @param {Object} container WC_MNM_Container
-	 * @return {Object} { addToBox, removeFromBox }
-	 */
-	function getLabels( container ) {
-		var $form  = container.$mnm_form,
-			raw    = $form.attr( 'data-quick_view_i18n' ) || $form.find( '.mnm_data' ).attr( 'data-quick_view_i18n' ),
+	if ( button && button.getAttribute( 'data-wc-mnm-quick-view' ) ) {
+		try {
+			labels = JSON.parse( button.getAttribute( 'data-wc-mnm-quick-view' ) ) || {};
+		} catch ( e ) {
 			labels = {};
-
-		if ( raw ) {
-			try {
-				labels = JSON.parse( raw ) || {};
-			} catch ( e ) {
-				labels = {};
-			}
 		}
-
-		return {
-			addToBox: labels.addToBox || i18n.addToBox,
-			removeFromBox: labels.removeFromBox || i18n.removeFromBox
-		};
 	}
 
-	/**
-	 * Get the child items that can be paged to, the ones shown in the form.
-	 *
-	 * @param {Object} container WC_MNM_Container
-	 * @return {Array} WC_MNM_Child_Item objects.
-	 */
-	function getVisibleItems( container ) {
-		return container.child_items.filter( function ( child ) {
-			return child.$self && child.$self.is( ':visible' );
+	return {
+		containerId,
+		productId,
+		title: getName( containerId, productId, itemEl ),
+		addToBox: labels.addToBox || '',
+		removeFromBox: labels.removeFromBox || '',
+		trigger: itemEl.querySelector( TRIGGERS ),
+		itemEl,
+		formEl,
+	};
+};
+
+/**
+ * Find the child item a quick view trigger belongs to, outside the modal.
+ *
+ * @param {EventTarget} target
+ * @return {Object|null} Item data, see getItemData(), with the trigger that was used.
+ */
+const getEventItem = ( target ) => {
+	const trigger = target instanceof Element ? target.closest( TRIGGERS ) : null;
+	const itemEl  = trigger && ! ( dialogEl && dialogEl.contains( trigger ) ) ? trigger.closest( '.mnm_item' ) : null;
+	const data    = itemEl ? getItemData( itemEl ) : null;
+
+	return data ? { ...data, trigger } : null;
+};
+
+/**
+ * Whether the container store knows a child item, so the modal can show its state.
+ *
+ * @param {Object} data Item data.
+ * @return {boolean}
+ */
+const isKnown = ( data ) => {
+	const container = mnm.containers[ data.containerId ];
+	return !! ( container && container.items[ data.productId ] );
+};
+
+/**
+ * Get the child items of a form that are shown, ex: not hidden by a filter, in display order.
+ *
+ * The order comes from the container store. Whether an item is shown comes from the page.
+ *
+ * @param {Object} data Item data of the open item.
+ * @return {Object[]} Item data.
+ */
+const getVisibleItems = ( data ) => {
+	const container = mnm.containers[ data.containerId ];
+	const ids       = container && container.itemIds ? container.itemIds : [];
+
+	return ids
+		.map( ( id ) => data.formEl && data.formEl.querySelector( '.mnm_item[data-mnm_item_id="' + id + '"]' ) )
+		.filter( ( itemEl ) => itemEl && isVisible( itemEl ) )
+		.map( getItemData )
+		.filter( Boolean );
+};
+
+/**
+ * Say that the quick view buttons and title links open a dialog.
+ *
+ * Added here because wp_kses_post() removes aria-haspopup from the button's markup.
+ */
+const prepareTriggers = () => {
+	document.querySelectorAll( '.mnm_item' ).forEach( ( itemEl ) => {
+		const data = getItemData( itemEl );
+
+		if ( ! data ) {
+			return;
+		}
+
+		itemEl.querySelectorAll( '[data-wc-mnm-quick-view]' ).forEach( ( button ) => button.setAttribute( 'aria-haspopup', 'dialog' ) );
+
+		// The title stays a link, so it can still be opened in a new tab, but says what a click does.
+		itemEl.querySelectorAll( '.woocommerce-loop-product__title a:not([aria-haspopup])' ).forEach( ( link ) => {
+			link.setAttribute( 'aria-haspopup', 'dialog' );
+			link.setAttribute( 'aria-label', ( state.i18n.openLabel || '%s' ).replace( '%s', data.title ) );
 		} );
-	}
+	} );
+};
 
-	/**
-	 * Get the item before or after the open one.
-	 *
-	 * @param {number} direction 1 or -1.
-	 * @return {Object|null} WC_MNM_Child_Item
-	 */
-	function getSibling( direction ) {
-		var item = getCurrent(),
-			items, index;
+/*-----------------------------------------------------------------*/
+/*  Loading                                                        */
+/*-----------------------------------------------------------------*/
 
-		if ( ! item ) {
-			return null;
+/**
+ * Preload the main image in some details, so it is ready when the modal opens.
+ *
+ * @param {string} html The details' HTML.
+ */
+const preloadImage = ( html ) => {
+	const template = document.createElement( 'template' );
+	template.innerHTML = html;
+
+	const img = template.content.querySelector( '.wc-mnm-quick-view__image img' );
+
+	if ( img ) {
+		const preload = new window.Image();
+
+		if ( img.sizes ) {
+			preload.sizes = img.sizes;
 		}
 
-		items = getVisibleItems( item.container );
-		index = items.indexOf( item.child );
-
-		return -1 === index ? null : items[ index + direction ] || null;
-	}
-
-	/**
-	 * Get a child item's title text.
-	 *
-	 * @param {Object} child WC_MNM_Child_Item
-	 * @return {string}
-	 */
-	function getTitle( child ) {
-		return $.trim( child.$self.find( '.woocommerce-loop-product__title' ).first().text() );
-	}
-
-	/*-----------------------------------------------------------------*/
-	/*  Loading                                                        */
-	/*-----------------------------------------------------------------*/
-
-	/**
-	 * Preload the main image in some details, so it is ready when the modal opens.
-	 *
-	 * @param {string} html The details' HTML.
-	 */
-	function preloadImage( html ) {
-		var template = document.createElement( 'template' ),
-			img, preload;
-
-		template.innerHTML = html;
-		img = template.content.querySelector( '.wc-mnm-quick-view__image img' );
-
-		if ( img ) {
-			preload = new window.Image();
-
-			if ( img.sizes ) {
-				preload.sizes = img.sizes;
-			}
-
-			if ( img.srcset ) {
-				preload.srcset = img.srcset;
-			}
-
-			preload.src = img.src;
+		if ( img.srcset ) {
+			preload.srcset = img.srcset;
 		}
+
+		preload.src = img.src;
+	}
+};
+
+/**
+ * Request details from the server.
+ *
+ * @param {Object} args Query args.
+ * @return {Promise<Object>} The response data.
+ */
+const request = async ( args ) => {
+	const url = new URL( state.ajaxUrl, window.location.href );
+
+	Object.entries( args ).forEach( ( [ key, value ] ) => url.searchParams.set( key, value ) );
+
+	const response = await window.fetch( url, { credentials: 'same-origin', headers: { Accept: 'application/json' } } );
+	const json     = response.ok ? await response.json() : null;
+
+	if ( ! json || ! json.success || ! json.data ) {
+		throw new Error( 'wc-mnm-quickview: the details could not be loaded.' );
 	}
 
-	/**
-	 * Request details from the server.
-	 *
-	 * @param {Object} data Query args.
-	 * @return {Object} jQuery promise of the response data.
-	 */
-	function request( data ) {
-		return $.ajax( {
-			url: params.ajax_url,
-			type: 'GET',
-			dataType: 'json',
-			data: data
-		} ).then( function ( response ) {
-			return response && response.success && response.data ? response.data : $.Deferred().reject().promise();
+	return json.data;
+};
+
+/**
+ * Fetch all of a container's details in one request, once.
+ *
+ * @param {number} containerId
+ * @return {Promise<Object>} The details' HTML, keyed by child product ID.
+ */
+const fetchAll = ( containerId ) => {
+	if ( ! batches.has( containerId ) ) {
+		const promise = request( { container_id: containerId } ).then( ( data ) => data.items || {} );
+
+		// Let a later hover or click try again.
+		promise.catch( () => batches.delete( containerId ) );
+
+		batches.set( containerId, promise );
+	}
+
+	return batches.get( containerId );
+};
+
+/**
+ * Fetch a child item's details, once.
+ *
+ * Comes from the request for all of the container's details, or one for just this item if that fails or
+ * doesn't have it.
+ *
+ * @param {number} containerId
+ * @param {number} productId
+ * @return {Promise<string>} The details' HTML.
+ */
+const fetchDetails = ( containerId, productId ) => {
+	const key = containerId + ':' + productId;
+
+	if ( cache.has( key ) ) {
+		return cache.get( key );
+	}
+
+	const single = () =>
+		request( { container_id: containerId, child_id: productId } ).then( ( data ) => {
+			if ( ! data.html ) {
+				throw new Error( 'wc-mnm-quickview: no details for this item.' );
+			}
+
+			return data.html;
 		} );
-	}
 
-	/**
-	 * Fetch all of a container's details in one request, once.
-	 *
-	 * @param {number} containerId Container ID.
-	 * @return {Object} jQuery promise of the details' HTML, keyed by child product ID.
-	 */
-	function fetchAll( containerId ) {
-		if ( ! batches[ containerId ] ) {
-			batches[ containerId ] = request( { container_id: containerId } ).then( function ( data ) {
-				return data.items || {};
-			} );
-
-			// Let a later hover or click try again.
-			batches[ containerId ].fail( function () {
-				delete batches[ containerId ];
-			} );
-		}
-
-		return batches[ containerId ];
-	}
-
-	/**
-	 * Fetch a child item's details, once.
-	 *
-	 * Comes from the request for all of the container's details, or one for just this item if that fails or
-	 * doesn't have it.
-	 *
-	 * @param {number} containerId Container ID.
-	 * @param {number} itemId      Child product ID.
-	 * @return {Object} jQuery promise of the details' HTML.
-	 */
-	function fetchDetails( containerId, itemId ) {
-		var key = containerId + ':' + itemId,
-			promise;
-
-		if ( cache[ key ] ) {
-			return cache[ key ];
-		}
-
-		function single() {
-			return request( { container_id: containerId, child_id: itemId } ).then( function ( data ) {
-				return data.html || $.Deferred().reject().promise();
-			} );
-		}
-
-		promise = fetchAll( containerId ).then(
-			function ( items ) {
-				return items[ itemId ] || single();
-			},
-			single
-		);
-
-		promise = promise.then( function ( html ) {
+	const promise = fetchAll( containerId )
+		.then( ( items ) => items[ productId ] || single(), single )
+		.then( ( html ) => {
 			preloadImage( html );
 			return html;
 		} );
 
-		// Let a later hover or click try again.
-		promise.fail( function () {
-			delete cache[ key ];
+	// Let a later hover or click try again.
+	promise.catch( () => cache.delete( key ) );
+
+	cache.set( key, promise );
+
+	return promise;
+};
+
+/**
+ * Load all of a container's details when the browser is idle.
+ *
+ * @param {number} containerId
+ */
+const preloadAll = ( containerId ) => {
+	if ( ! state.preloadAll || preloaded.has( containerId ) ) {
+		return;
+	}
+
+	preloaded.add( containerId );
+
+	const run = () => fetchAll( containerId ).catch( () => {} );
+
+	if ( window.requestIdleCallback ) {
+		window.requestIdleCallback( run, { timeout: 3000 } );
+	} else {
+		window.setTimeout( run, 1000 );
+	}
+};
+
+/**
+ * Load the open child item's details into the modal.
+ */
+const load = () => {
+	const id = ++requestId;
+
+	state.isLoading = true;
+	state.hasError  = false;
+	state.html      = '';
+
+	fetchDetails( state.containerId, state.productId )
+		.then(
+			( html ) => {
+				if ( id === requestId ) {
+					state.html = html;
+				}
+			},
+			() => {
+				if ( id === requestId ) {
+					state.hasError = true;
+				}
+			}
+		)
+		.finally( () => {
+			if ( id === requestId ) {
+				state.isLoading = false;
+			}
 		} );
+};
 
-		cache[ key ] = promise;
+/*-----------------------------------------------------------------*/
+/*  The modal                                                      */
+/*-----------------------------------------------------------------*/
 
-		return promise;
+/**
+ * Show a child item in the modal, opening it if needed.
+ *
+ * @param {Object}  data    Item data.
+ * @param {Element} trigger The element that opened it, focus returns there on close.
+ */
+const openItem = ( data, trigger ) => {
+	const items = getVisibleItems( data );
+	const index = items.findIndex( ( item ) => item.productId === data.productId );
+
+	siblings = {
+		prev: index > 0 ? items[ index - 1 ] : null,
+		next: -1 !== index && index < items.length - 1 ? items[ index + 1 ] : null,
+	};
+
+	openerEl = trigger;
+
+	state.containerId = data.containerId;
+	state.productId   = data.productId;
+	state.labels      = {
+		addToBox: data.addToBox || state.i18n.addToBox,
+		removeFromBox: data.removeFromBox || state.i18n.removeFromBox,
+	};
+	state.hasPrev     = !! siblings.prev;
+	state.hasNext     = !! siblings.next;
+	state.prevTitle   = siblings.prev ? siblings.prev.title : '';
+	state.nextTitle   = siblings.next ? siblings.next.title : '';
+	state.messages    = [];
+	state.isOpen      = true;
+
+	// Opened here rather than from a watch on isOpen, because the close event that resets it can come late.
+	if ( dialogEl && ! dialogEl.open ) {
+		dialogEl.showModal();
+		dialogEl.querySelector( '.wc-mnm-quick-view__close' ).focus();
 	}
 
-	/**
-	 * Prefetch a child item's details, ex: while the pointer rests on it.
-	 *
-	 * Loads the whole container, so the next items open instantly too.
-	 *
-	 * @param {Element} trigger An element that opens the quick view.
-	 */
-	function prefetch( trigger ) {
-		var item = findItem( trigger );
+	load();
+};
 
-		if ( item ) {
-			fetchDetails( parseInt( item.container.container_id, 10 ), parseInt( item.child.mnm_item_id, 10 ) );
-		}
+/**
+ * Clean up and return focus once the modal closes. Runs again for the close event, so it checks first.
+ */
+const onClosed = () => {
+	const opener = openerEl;
+
+	if ( ! state.isOpen ) {
+		return;
 	}
 
-	/**
-	 * Load all of a container's details when the browser is idle.
-	 *
-	 * @param {Object} container WC_MNM_Container
-	 */
-	function preloadAll( container ) {
-		var run = function () {
-			fetchAll( parseInt( container.container_id, 10 ) );
-		};
+	requestId++;
+	openerEl       = null;
+	pendingFocus   = '';
+	state.isOpen   = false;
+	state.messages = [];
 
-		if ( ! params.preload_all ) {
-			return;
-		}
+	if ( opener && opener.isConnected ) {
+		opener.focus();
+	}
+};
 
-		if ( window.requestIdleCallback ) {
-			window.requestIdleCallback( run, { timeout: 3000 } );
-		} else {
-			window.setTimeout( run, 1000 );
-		}
+/**
+ * Show the previous or next child item.
+ *
+ * @param {string} direction prev|next
+ */
+const navigate = ( direction ) => {
+	const sibling = siblings[ direction ];
+
+	if ( sibling && isKnown( sibling ) ) {
+		pendingFocus = direction;
+		openItem( sibling, sibling.trigger || openerEl );
+	}
+};
+
+/**
+ * Change the open child item's quantity with a container store action.
+ *
+ * @param {Function} action increaseItem or decreaseItem.
+ */
+const change = ( action ) => {
+	const result = action( state.containerId, state.productId );
+
+	// The container may have corrected the quantity, ex: when there isn't room.
+	state.messages = result && result.messages ? result.messages : [];
+};
+
+/**
+ * Whether a button can take focus.
+ *
+ * @param {HTMLButtonElement|null} button
+ * @return {boolean}
+ */
+const canFocus = ( button ) => !! button && ! button.disabled && ! button.closest( '[hidden]' );
+
+/**
+ * Move focus where a control was used, or away from one that was disabled or hidden while it had focus.
+ */
+const placeFocus = () => {
+	if ( ! dialogEl || ! dialogEl.open ) {
+		return;
 	}
 
-	/**
-	 * Load the open child item's details into the modal.
-	 */
-	function load() {
-		var request = ++requestId;
+	const find   = ( selector ) => dialogEl.querySelector( selector );
+	const intent = pendingFocus;
+	let target   = null;
 
-		$dialog.addClass( 'is-loading' ).attr( 'aria-busy', 'true' );
-		$dialog.find( '.wc-mnm-quick-view__content' ).empty();
-		$dialog.find( '.wc-mnm-quick-view__error' ).prop( 'hidden', true );
-		render();
+	pendingFocus = '';
 
-		fetchDetails( current.containerId, current.itemId )
-			.done( function ( html ) {
-				if ( request === requestId ) {
-					$dialog.find( '.wc-mnm-quick-view__content' ).html( html ).scrollTop( 0 );
-				}
-			} )
-			.fail( function () {
-				if ( request === requestId ) {
-					$dialog.find( '.wc-mnm-quick-view__error' ).prop( 'hidden', false );
-				}
-			} )
-			.always( function () {
-				if ( request === requestId ) {
-					$dialog.removeClass( 'is-loading' ).removeAttr( 'aria-busy' );
-					render();
-					$dialog.trigger( 'wc-mnm-quick-view-loaded', [ current.containerId, current.itemId ] );
-				}
-			} );
+	if ( 'add' === intent ) {
+		// The add button is replaced by the stepper or the remove button.
+		target = [ '.wc-mnm-quick-view__increase', '.wc-mnm-quick-view__remove', '.wc-mnm-quick-view__decrease' ].map( find ).find( canFocus );
+	} else if ( 'prev' === intent || 'next' === intent ) {
+		// Keep focus on the button that was used, unless it is now disabled.
+		target = [ intent, 'next' === intent ? 'prev' : 'next' ].map( ( name ) => find( '.wc-mnm-quick-view__' + name ) ).find( canFocus );
 	}
 
-	/*-----------------------------------------------------------------*/
-	/*  The modal                                                      */
-	/*-----------------------------------------------------------------*/
+	if ( ! target ) {
+		const active = document.activeElement;
 
-	/**
-	 * Escape text for HTML.
-	 *
-	 * @param {string} text
-	 * @return {string}
-	 */
-	function esc( text ) {
-		return $( '<div />' ).text( text || '' ).html();
-	}
-
-	/**
-	 * Build the modal, once.
-	 *
-	 * @return {Object} jQuery dialog.
-	 */
-	function getDialog() {
-		if ( $dialog ) {
-			return $dialog;
-		}
-
-		$dialog = $(
-			'<dialog id="wc-mnm-quick-view" class="wc-mnm-quick-view woocommerce" aria-labelledby="wc-mnm-quick-view-title">' +
-				'<div class="wc-mnm-quick-view__inner">' +
-					'<div class="wc-mnm-quick-view__header">' +
-						'<div class="wc-mnm-quick-view__nav">' +
-							'<button type="button" class="wc-mnm-quick-view__prev" aria-label="' + esc( i18n.previous ) + '"><span aria-hidden="true">&lsaquo;</span></button>' +
-							'<button type="button" class="wc-mnm-quick-view__next" aria-label="' + esc( i18n.next ) + '"><span aria-hidden="true">&rsaquo;</span></button>' +
-						'</div>' +
-						'<button type="button" class="wc-mnm-quick-view__close" aria-label="' + esc( i18n.close ) + '"><span aria-hidden="true">&times;</span></button>' +
-					'</div>' +
-					'<div class="wc-mnm-quick-view__content"></div>' +
-					'<p class="wc-mnm-quick-view__error woocommerce-error" role="alert" hidden>' + esc( i18n.error ) + '</p>' +
-					'<div class="wc-mnm-quick-view__footer" hidden>' +
-						'<div class="wc-mnm-quick-view__status" role="status" aria-live="polite">' +
-							'<p class="wc-mnm-quick-view__in-box" hidden></p>' +
-							'<ul class="wc-mnm-quick-view__messages"></ul>' +
-						'</div>' +
-						'<div class="wc-mnm-quick-view__actions">' +
-							'<div class="wc-mnm-quick-view__stepper" hidden>' +
-								'<button type="button" class="wc-mnm-quick-view__decrease button" aria-label="' + esc( i18n.decrease ) + '">&minus;</button>' +
-								'<span class="wc-mnm-quick-view__quantity" aria-hidden="true"></span>' +
-								'<button type="button" class="wc-mnm-quick-view__increase button" aria-label="' + esc( i18n.increase ) + '">+</button>' +
-							'</div>' +
-							'<button type="button" class="wc-mnm-quick-view__add button alt wp-element-button" hidden></button>' +
-							'<button type="button" class="wc-mnm-quick-view__remove button" hidden></button>' +
-						'</div>' +
-					'</div>' +
-				'</div>' +
-			'</dialog>'
-		);
-
-		dialog = $dialog.get( 0 );
-
-		$dialog
-			.on( 'click', '.wc-mnm-quick-view__close', close )
-			.on( 'click', '.wc-mnm-quick-view__prev', function () { navigate( -1 ); } )
-			.on( 'click', '.wc-mnm-quick-view__next', function () { navigate( 1 ); } )
-			.on( 'click', '.wc-mnm-quick-view__increase', function () { step( 1 ); } )
-			.on( 'click', '.wc-mnm-quick-view__decrease, .wc-mnm-quick-view__remove', function () { step( -1 ); } )
-			.on( 'click', '.wc-mnm-quick-view__add', add )
-			.on( 'click', '.wc-mnm-quick-view__thumbnail', onThumbnailClick )
-			.on( 'click', function ( event ) {
-				// A click on the dialog itself, not its contents, is a click on the backdrop.
-				if ( event.target === dialog ) {
-					close();
-				}
-			} )
-			.on( 'keydown', onDialogKeydown )
-			.on( 'close', onClose );
-
-		$( document.body ).append( $dialog );
-
-		return $dialog;
-	}
-
-	/**
-	 * Update the modal from the open child item.
-	 */
-	function render() {
-		var item = getCurrent(),
-			isReady, state, labels, prev, next, list, notes;
-
-		if ( ! $dialog || ! current ) {
-			return;
-		}
-
-		isReady = item && ! $dialog.hasClass( 'is-loading' ) && $dialog.find( '.wc-mnm-quick-view__error' ).prop( 'hidden' );
-
-		// Previous and next.
-		prev = getSibling( -1 );
-		next = getSibling( 1 );
-
-		$dialog.find( '.wc-mnm-quick-view__prev' )
-			.prop( 'disabled', ! prev )
-			.attr( 'aria-label', prev ? i18n.previous + ': ' + getTitle( prev ) : i18n.previous );
-		$dialog.find( '.wc-mnm-quick-view__next' )
-			.prop( 'disabled', ! next )
-			.attr( 'aria-label', next ? i18n.next + ': ' + getTitle( next ) : i18n.next );
-		$dialog.find( '.wc-mnm-quick-view__nav' ).prop( 'hidden', ! prev && ! next );
-
-		$dialog.find( '.wc-mnm-quick-view__footer' ).prop( 'hidden', ! isReady );
-
-		if ( ! isReady ) {
-			return;
-		}
-
-		state  = getItemState( item.container, item.child );
-		labels = getLabels( item.container );
-
-		$dialog.find( '.wc-mnm-quick-view__in-box' )
-			.prop( 'hidden', ! state.isSelected )
-			.text( 'hidden' === state.type ? i18n.included : ( i18n.inBox || '' ).replace( '%d', state.quantity ) );
-
-		$dialog.find( '.wc-mnm-quick-view__quantity' ).text( state.quantity );
-		$dialog.find( '.wc-mnm-quick-view__stepper' ).prop( 'hidden', ! state.isSelected || 'checkbox' === state.type || 'hidden' === state.type || 'unavailable' === state.type );
-		$dialog.find( '.wc-mnm-quick-view__increase' ).prop( 'disabled', ! state.canIncrease );
-		$dialog.find( '.wc-mnm-quick-view__decrease' ).prop( 'disabled', ! state.canDecrease );
-
-		$dialog.find( '.wc-mnm-quick-view__add' )
-			.text( labels.addToBox )
-			.prop( 'hidden', state.isSelected || 'unavailable' === state.type || 'hidden' === state.type )
-			.prop( 'disabled', ! state.canIncrease )
-			.toggleClass( 'disabled', ! state.canIncrease );
-
-		$dialog.find( '.wc-mnm-quick-view__remove' )
-			.text( labels.removeFromBox )
-			.prop( 'hidden', ! state.isSelected || 'checkbox' !== state.type );
-
-		// Messages are built as HTML by the container script, same as the form's messages.
-		notes = messages.slice( 0 );
-
-		if ( 'unavailable' === state.type ) {
-			notes.push( esc( current.unavailableText || i18n.unavailable ) );
-		} else if ( state.isFull && ! state.isSelected && ! notes.length ) {
-			notes.push( esc( i18n.full ) );
-		}
-
-		list = $.map( notes, function ( message ) {
-			return '<li>' + message + '</li>';
-		} ).join( '' );
-
-		$dialog.find( '.wc-mnm-quick-view__messages' ).html( list );
-
-		keepFocus();
-	}
-
-	/**
-	 * A button that is disabled or hidden while it has focus drops focus to the page, move it to the nearest control instead.
-	 */
-	function keepFocus() {
-		var active = document.activeElement,
-			$target;
-
-		if ( ! dialog || ! dialog.open || ( active && active !== document.body && dialog.contains( active ) && ! active.disabled && $( active ).is( ':visible' ) ) ) {
+		if ( active && active !== document.body && dialogEl.contains( active ) && ( 'BUTTON' !== active.tagName || canFocus( active ) ) ) {
 			return;
 		}
 
 		// Prefer the footer controls, then the close button.
-		$target = $dialog.find( '.wc-mnm-quick-view__footer button' ).filter( function () {
-			return ! this.disabled && $( this ).is( ':visible' );
-		} );
-
-		( $target.length ? $target.first() : $dialog.find( '.wc-mnm-quick-view__close' ) ).trigger( 'focus' );
+		target = [ ...dialogEl.querySelectorAll( '.wc-mnm-quick-view__footer button' ) ].find( canFocus ) || find( '.wc-mnm-quick-view__close' );
 	}
 
-	/**
-	 * Open the modal for a child item.
-	 *
-	 * @param {Object}  item    { container, child }
-	 * @param {Element} trigger The element that opened it.
-	 */
-	function open( item, trigger ) {
-		var availability = item.child.$self.find( '.stock' ).first();
+	if ( target ) {
+		target.focus();
+	}
+};
 
-		getDialog();
+/**
+ * Escape text for HTML.
+ *
+ * @param {string} text
+ * @return {string}
+ */
+const escapeHtml = ( text ) => {
+	const el = document.createElement( 'div' );
+	el.textContent = text || '';
+	return el.innerHTML;
+};
 
-		openerEl = trigger;
-		messages = [];
-		current  = {
-			containerId: parseInt( item.container.container_id, 10 ),
-			itemId: parseInt( item.child.mnm_item_id, 10 ),
-			itemEl: item.child.$self.get( 0 ),
-			// The form prints the reason an item can't be chosen, ex: "Out of stock", where its quantity input would be.
-			unavailableText: availability.length ? $.trim( availability.text() ) : ''
-		};
-
-		if ( ! dialog.open ) {
-			dialog.showModal();
-			$dialog.find( '.wc-mnm-quick-view__close' ).trigger( 'focus' );
-		}
-
-		load();
+/**
+ * Keep a reference to the dialog, from a callback on it or inside it. The callbacks can run in any order.
+ *
+ * Without <dialog> support the quick view stays off.
+ *
+ * @return {HTMLDialogElement|null}
+ */
+const setDialog = () => {
+	if ( ! dialogEl && window.HTMLDialogElement ) {
+		dialogEl = getElement().ref.closest( 'dialog' );
 	}
 
-	/**
-	 * Show the previous or next child item.
-	 *
-	 * @param {number} direction 1 or -1.
-	 */
-	function navigate( direction ) {
-		var sibling = getSibling( direction ),
-			item, $button;
+	return dialogEl;
+};
 
-		if ( ! sibling ) {
-			return;
-		}
+/*-----------------------------------------------------------------*/
+/*  Store                                                          */
+/*-----------------------------------------------------------------*/
 
-		item = findItem( sibling.$self.get( 0 ) );
+const { state } = store( NAMESPACE, {
+	state: {
+		// From the server: ajaxUrl, preloadAll and i18n.
 
-		if ( item ) {
-			// Focus returns to the item that is shown when the modal closes.
-			open( item, getTrigger( sibling ) || openerEl );
+		isOpen: false,
+		isLoading: false,
+		hasError: false,
+		containerId: 0,
+		productId: 0,
+		labels: { addToBox: '', removeFromBox: '' },
+		html: '',
+		messages: [], // HTML, from the last change of quantity.
+		hasPrev: false,
+		hasNext: false,
+		prevTitle: '',
+		nextTitle: '',
 
-			// Keep focus on the button that was used, unless it is now disabled.
-			$button = $dialog.find( direction > 0 ? '.wc-mnm-quick-view__next' : '.wc-mnm-quick-view__prev' );
-			( $button.prop( 'disabled' ) ? $dialog.find( direction > 0 ? '.wc-mnm-quick-view__prev' : '.wc-mnm-quick-view__next' ) : $button ).trigger( 'focus' );
-		}
-	}
+		/**
+		 * The open child item's state in the container store.
+		 *
+		 * @return {Object|null}
+		 */
+		get item() {
+			const container = mnm.containers[ state.containerId ];
+			return ( container && container.items[ state.productId ] ) || null;
+		},
 
-	/**
-	 * Add the child item, then move focus to what replaces the add button.
-	 */
-	function add() {
-		var $next;
+		get type() {
+			return state.item ? state.item.type : 'unavailable';
+		},
 
-		step( 1 );
+		get isSelected() {
+			return !! state.item && state.item.isSelected;
+		},
 
-		$next = $dialog.find( '.wc-mnm-quick-view__stepper:not([hidden]) .wc-mnm-quick-view__increase, .wc-mnm-quick-view__remove:not([hidden])' ).first();
+		get isReady() {
+			return state.isOpen && ! state.isLoading && ! state.hasError && !! state.item;
+		},
 
-		if ( $next.length && $dialog.find( '.wc-mnm-quick-view__add' ).prop( 'hidden' ) ) {
-			// The increase button may be disabled once the box is full, then focus the decrease button.
-			if ( $next.prop( 'disabled' ) ) {
-				$next = $dialog.find( '.wc-mnm-quick-view__decrease' );
+		get hideError() {
+			return ! state.hasError;
+		},
+
+		get hideFooter() {
+			return ! state.isReady;
+		},
+
+		get hideInBox() {
+			return ! state.isSelected;
+		},
+
+		get inBoxText() {
+			const quantity = state.item ? state.item.quantity : 0;
+			return 'hidden' === state.type ? state.i18n.included : ( state.i18n.inBox || '' ).replace( '%d', quantity );
+		},
+
+		get quantity() {
+			return state.item ? String( state.item.quantity ) : '';
+		},
+
+		get hideStepper() {
+			return ! state.isSelected || 'checkbox' === state.type || FIXED_TYPES.includes( state.type );
+		},
+
+		get cannotIncrease() {
+			return ! state.item || ! state.item.canIncrease;
+		},
+
+		get cannotDecrease() {
+			return ! state.item || ! state.item.canDecrease;
+		},
+
+		get hideAdd() {
+			return state.isSelected || FIXED_TYPES.includes( state.type );
+		},
+
+		get hideRemove() {
+			return ! state.isSelected || 'checkbox' !== state.type;
+		},
+
+		/**
+		 * The messages under the item, as HTML. The container's are built by the container script.
+		 *
+		 * @return {string[]}
+		 */
+		get notes() {
+			const container = mnm.containers[ state.containerId ];
+			const notes     = [ ...state.messages ];
+
+			if ( 'unavailable' === state.type ) {
+				// The form's reason, ex: "Out of stock". Missing before WordPress 6.7, see getName().
+				const availability = state.item && state.item.availability;
+				notes.push( escapeHtml( ( availability && availability.text ) || state.i18n.unavailable ) );
+			} else if ( container && container.isFull && ! state.isSelected && ! notes.length ) {
+				notes.push( escapeHtml( state.i18n.full ) );
 			}
 
-			$next.trigger( 'focus' );
-		}
-	}
+			return notes;
+		},
 
-	/**
-	 * Close the modal.
-	 */
-	function close() {
-		if ( dialog && dialog.open ) {
-			dialog.close();
-		}
-	}
+		get hideNav() {
+			return ! state.hasPrev && ! state.hasNext;
+		},
 
-	/**
-	 * Clean up and return focus once the modal closes, including on Escape.
-	 */
-	function onClose() {
-		var opener = openerEl;
+		get prevLabel() {
+			return state.hasPrev ? state.i18n.previous + ': ' + state.prevTitle : state.i18n.previous;
+		},
 
-		requestId++;
-		current  = null;
-		openerEl = null;
-		messages = [];
+		get nextLabel() {
+			return state.hasNext ? state.i18n.next + ': ' + state.nextTitle : state.i18n.next;
+		},
+	},
 
-		if ( opener && document.documentElement.contains( opener ) ) {
-			opener.focus();
-		}
-	}
+	actions: {
+		/**
+		 * Open a quick view from a click on a child item's quick view button or title.
+		 *
+		 * @param {MouseEvent} event
+		 */
+		onDocumentClick: withSyncEvent( ( event ) => {
+			const data = dialogEl ? getEventItem( event.target ) : null;
 
-	/**
-	 * Arrow keys page through the items, unless typing in a field.
-	 *
-	 * @param {KeyboardEvent} event
-	 */
-	function onDialogKeydown( event ) {
-		if ( $( event.target ).is( ':input:not(button)' ) || event.altKey || event.ctrlKey || event.metaKey ) {
-			return;
-		}
+			if ( ! data || ! isKnown( data ) ) {
+				return;
+			}
 
-		if ( 'ArrowLeft' === event.key || 'ArrowRight' === event.key ) {
+			// Let shoppers open the product page in a new tab.
+			if ( data.trigger.closest( 'a' ) && ( event.metaKey || event.ctrlKey || event.shiftKey || 0 !== event.button ) ) {
+				return;
+			}
+
 			event.preventDefault();
-			navigate( 'ArrowRight' === event.key ? 1 : -1 );
-		}
-	}
+			openItem( data, data.trigger );
+		} ),
 
-	/**
-	 * Swap the main image for a clicked thumbnail.
-	 */
-	function onThumbnailClick( event ) {
-		var thumbnail = event.currentTarget,
-			image     = dialog.querySelector( '.wc-mnm-quick-view__image img' );
+		/**
+		 * Prefetch when the pointer rests on a child item's quick view button or title.
+		 *
+		 * @param {PointerEvent} event
+		 */
+		onDocumentPointerOver( event ) {
+			const data = getEventItem( event.target );
 
-		if ( ! image ) {
-			return;
-		}
+			window.clearTimeout( hoverTimer );
 
-		image.src = thumbnail.getAttribute( 'data-src' );
-		image.alt = thumbnail.getAttribute( 'data-alt' ) || '';
-
-		if ( thumbnail.getAttribute( 'data-srcset' ) ) {
-			image.srcset = thumbnail.getAttribute( 'data-srcset' );
-		} else {
-			image.removeAttribute( 'srcset' );
-		}
-
-		$dialog.find( '.wc-mnm-quick-view__thumbnail' ).each( function () {
-			$( this ).toggleClass( 'is-active', this === thumbnail ).attr( 'aria-pressed', this === thumbnail ? 'true' : 'false' );
-		} );
-	}
-
-	/*-----------------------------------------------------------------*/
-	/*  Triggers                                                       */
-	/*-----------------------------------------------------------------*/
-
-	/**
-	 * Get the element that opens a child item's quick view.
-	 *
-	 * @param {Object} child WC_MNM_Child_Item
-	 * @return {Element|null}
-	 */
-	function getTrigger( child ) {
-		var $trigger = child.$self.find( TRIGGERS ).first();
-		return $trigger.length ? $trigger.get( 0 ) : null;
-	}
-
-	/**
-	 * Find the quick view trigger an event happened on, outside the modal.
-	 *
-	 * @param {Event} event
-	 * @return {Element|null}
-	 */
-	function getEventTrigger( event ) {
-		var trigger = event.target instanceof window.Element ? event.target.closest( TRIGGERS ) : null;
-		return trigger && ! ( dialog && dialog.contains( trigger ) ) ? trigger : null;
-	}
-
-	/**
-	 * Say that the quick view buttons and title links open a dialog.
-	 *
-	 * @param {Object} container WC_MNM_Container
-	 */
-	function prepareTriggers( container ) {
-		$.each( container.child_items || [], function ( index, child ) {
-			var label = ( i18n.openLabel || '%s' ).replace( '%s', getTitle( child ) );
-
-			child.$self.find( '[data-wc-mnm-quick-view]' ).attr( 'aria-haspopup', 'dialog' );
-
-			// The title stays a link, so it can still be opened in a new tab, but says what a click does.
-			child.$self.find( '.woocommerce-loop-product__title a' ).not( '[aria-haspopup]' ).attr( {
-				'aria-haspopup': 'dialog',
-				'aria-label': label
-			} );
-		} );
-	}
-
-	/**
-	 * Open a quick view from a click on a child item's quick view button or title.
-	 *
-	 * Runs in the capture phase so that the image lightbox and product link don't also handle it.
-	 *
-	 * @param {MouseEvent} event
-	 */
-	function onClick( event ) {
-		var trigger = getEventTrigger( event ),
-			item;
-
-		if ( ! trigger ) {
-			return;
-		}
-
-		// Let shoppers open the product page in a new tab.
-		if ( trigger.closest( 'a' ) && ( event.metaKey || event.ctrlKey || event.shiftKey || 0 !== event.button ) ) {
-			return;
-		}
-
-		item = findItem( trigger );
-
-		if ( ! item ) {
-			return;
-		}
-
-		event.preventDefault();
-		event.stopPropagation();
-
-		open( item, trigger );
-	}
-
-	/**
-	 * Prefetch when the pointer rests on a child item's quick view button or title.
-	 *
-	 * @param {PointerEvent} event
-	 */
-	function onPointerOver( event ) {
-		var trigger = getEventTrigger( event );
-
-		window.clearTimeout( hoverTimer );
-
-		if ( trigger ) {
-			hoverTimer = window.setTimeout( function () {
-				prefetch( trigger );
-			}, HOVER_DELAY );
-		}
-	}
-
-	/**
-	 * Prefetch right away on keyboard focus, and on touch, which has no hover.
-	 *
-	 * @param {Event} event
-	 */
-	function onIntent( event ) {
-		var trigger = getEventTrigger( event );
-
-		if ( trigger ) {
-			prefetch( trigger );
-		}
-	}
-
-	/*-----------------------------------------------------------------*/
-	/*  Init                                                           */
-	/*-----------------------------------------------------------------*/
-
-	if ( ! window.HTMLDialogElement || ! params.ajax_url ) {
-		return;
-	}
-
-	document.addEventListener( 'click', onClick, true );
-	document.addEventListener( 'pointerover', onPointerOver, { passive: true } );
-	document.addEventListener( 'pointerdown', onIntent, { passive: true } );
-	document.addEventListener( 'focusin', onIntent );
-
-	$( document )
-		// Forms initialized later, ex: loaded with ajax to edit an order or subscription.
-		.on( 'wc-mnm-initialized', '.mnm_form', function ( event, container ) {
-			prepareTriggers( container );
-			preloadAll( container );
-			render();
-		} )
-		// Keep the modal in step with the form.
-		.on( 'wc-mnm-container-quantities-updated wc-mnm-package-changed wc-mnm-form-updated', '.mnm_form', function () {
-			if ( dialog && dialog.open ) {
-				render();
+			if ( data ) {
+				hoverTimer = window.setTimeout( () => fetchDetails( data.containerId, data.productId ).catch( () => {} ), HOVER_DELAY );
 			}
-		} );
+		},
 
-	// Forms that were initialized before this script ran.
-	$( function () {
-		$.each( getContainers(), function ( index, container ) {
-			prepareTriggers( container );
-			preloadAll( container );
-		} );
-	} );
+		/**
+		 * Prefetch right away on keyboard focus, and on touch, which has no hover.
+		 *
+		 * @param {Event} event
+		 */
+		onDocumentIntent( event ) {
+			const data = getEventItem( event.target );
 
-} )( jQuery, window, document );
+			if ( data ) {
+				fetchDetails( data.containerId, data.productId ).catch( () => {} );
+			}
+		},
+
+		close() {
+			if ( dialogEl && dialogEl.open ) {
+				dialogEl.close();
+			}
+
+			onClosed();
+		},
+
+		/**
+		 * A click on the dialog itself, not its contents, is a click on the backdrop.
+		 *
+		 * @param {MouseEvent} event
+		 */
+		onDialogClick( event ) {
+			if ( event.target === dialogEl ) {
+				dialogEl.close();
+				onClosed();
+			}
+		},
+
+		/**
+		 * The dialog closed, ex: on Escape.
+		 */
+		onClose() {
+			onClosed();
+		},
+
+		/**
+		 * Arrow keys page through the items, unless typing in a field.
+		 *
+		 * @param {KeyboardEvent} event
+		 */
+		onKeydown: withSyncEvent( ( event ) => {
+			const target = event.target;
+
+			if ( ( target.matches && target.matches( 'input, select, textarea, [contenteditable]' ) ) || event.altKey || event.ctrlKey || event.metaKey ) {
+				return;
+			}
+
+			if ( 'ArrowLeft' === event.key || 'ArrowRight' === event.key ) {
+				event.preventDefault();
+				navigate( 'ArrowRight' === event.key ? 'next' : 'prev' );
+			}
+		} ),
+
+		prev() {
+			navigate( 'prev' );
+		},
+
+		next() {
+			navigate( 'next' );
+		},
+
+		increase() {
+			change( mnmActions.increaseItem );
+		},
+
+		decrease() {
+			change( mnmActions.decreaseItem );
+		},
+
+		add() {
+			pendingFocus = 'add';
+			change( mnmActions.increaseItem );
+		},
+
+		/**
+		 * Swap the main image for a clicked thumbnail. The details are loaded HTML, so the click is delegated.
+		 *
+		 * @param {MouseEvent} event
+		 */
+		onContentClick( event ) {
+			const thumbnail = event.target instanceof Element ? event.target.closest( '.wc-mnm-quick-view__thumbnail' ) : null;
+			const image     = dialogEl && dialogEl.querySelector( '.wc-mnm-quick-view__image img' );
+
+			if ( ! thumbnail || ! image ) {
+				return;
+			}
+
+			image.src = thumbnail.getAttribute( 'data-src' );
+			image.alt = thumbnail.getAttribute( 'data-alt' ) || '';
+
+			if ( thumbnail.getAttribute( 'data-srcset' ) ) {
+				image.srcset = thumbnail.getAttribute( 'data-srcset' );
+			} else {
+				image.removeAttribute( 'srcset' );
+			}
+
+			dialogEl.querySelectorAll( '.wc-mnm-quick-view__thumbnail' ).forEach( ( el ) => {
+				el.classList.toggle( 'is-active', el === thumbnail );
+				el.setAttribute( 'aria-pressed', el === thumbnail ? 'true' : 'false' );
+			} );
+		},
+	},
+
+	callbacks: {
+		/**
+		 * Keep a reference to the dialog.
+		 */
+		init() {
+			setDialog();
+		},
+
+		/**
+		 * Get the child items ready as containers appear, including forms loaded with ajax.
+		 */
+		watchContainers() {
+			const ids = [ ...mnm.ids ];
+
+			if ( setDialog() ) {
+				prepareTriggers();
+				ids.forEach( preloadAll );
+			}
+		},
+
+		/**
+		 * Put the loaded details in the modal.
+		 */
+		renderContent() {
+			const { ref } = getElement();
+			const html    = state.html;
+
+			ref.innerHTML = html;
+			ref.scrollTop = 0;
+
+			if ( html && dialogEl ) {
+				dialogEl.dispatchEvent(
+					new window.CustomEvent( 'wc-mnm-quick-view-loaded', {
+						bubbles: true,
+						detail: { containerId: state.containerId, productId: state.productId },
+					} )
+				);
+			}
+		},
+
+		/**
+		 * Render the messages. They are HTML, see state.notes.
+		 */
+		renderMessages() {
+			getElement().ref.innerHTML = state.notes.map( ( note ) => '<li>' + note + '</li>' ).join( '' );
+		},
+
+		/**
+		 * Look after focus when the controls change.
+		 */
+		watchFocus() {
+			// Read what shows, hides, enables or disables a control, so this runs again when they change.
+			const controls = [ state.isReady, state.hideAdd, state.hideStepper, state.hideRemove, state.cannotIncrease, state.cannotDecrease, state.hasPrev, state.hasNext ];
+
+			// After the controls re-render.
+			if ( controls.length ) {
+				window.setTimeout( placeFocus );
+			}
+		},
+	},
+} );

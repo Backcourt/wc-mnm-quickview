@@ -4,9 +4,9 @@
 
 Mini-extension for [WooCommerce Mix and Match](https://woocommerce.com/products/woocommerce-mix-and-match-products/) that opens a child item's product details in a pop-up when shoppers click the magnifier button in the corner of its image, or its title. The pop-up has a button to add the product to the container, a quantity stepper, and previous/next buttons to page through the products.
 
-It works with the regular Mix and Match add to cart form (jQuery), including forms loaded with ajax such as editing an order or subscription. There's no build step and no React.
+It's built on the Interactivity API and the Mix and Match container store (`@wc-mix-and-match/container`): the modal reads each child item's state from the store and changes quantities with its actions, so it doesn't depend on how the add to cart form is rendered. It works in forms loaded with ajax, such as editing a subscription, but not in the admin, where the store isn't loaded. There's no build step and no React.
 
-![A modal window showing some details such as thumbnail, title, and description of a red wine product](https://github.com/kathyisawesome/wc-mnm-quickview/assets/507025/9879c570-c021-48db-8918-eb6205501b4a)
+![A modal window showing some details such as thumbnail, title, and description of a red wine product](https://github.com/Backcourt/wc-mnm-quickview/assets/507025/9879c570-c021-48db-8918-eb6205501b4a)
 
 ### Customizing the button text
 
@@ -40,10 +40,10 @@ add_filter( 'wc_mnm_quick_view_i18n', function( $i18n ) {
 
 ### Development
 
-The script is a plain file, `assets/js/frontend/quick-view.js`. The styles are written in `assets/scss/frontend/quick-view.scss` and compiled into `assets/css/`, which isn't committed. Run `npm install`, then `npm run dev` to build the CSS and the minified and RTL copies, or `npm run watch` to rebuild on save. The minified files are used when present and `SCRIPT_DEBUG` is off.
+The script is a native ES module, `assets/js/frontend/quick-view.js`, registered as the `@wc-mnm-quickview/quick-view` script module. Its store namespace is `wc-mnm-quickview`. The styles are written in `assets/scss/frontend/quick-view.scss` and compiled into `assets/css/`, which isn't committed. Run `npm install`, then `npm run dev` to build the CSS and the minified and RTL copies, or `npm run watch` to rebuild on save. The minified files are used when present and `SCRIPT_DEBUG` is off.
 
 ### Important
 
 1. This is provided as is and does not receive priority support.
 2. Please test thoroughly before using in production.
-3. Requires Mix and Match 2.8.0+ and WooCommerce 8.0+.
+3. Requires Mix and Match 3.0+, WooCommerce 8.0+ and WordPress 6.5+.
