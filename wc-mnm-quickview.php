@@ -57,7 +57,8 @@ class Plugin {
 	 * Minimum versions.
 	 */
 	const REQ_WC_VERSION  = '8.0.0';
-	const REQ_MNM_VERSION = '2.8.0';
+	const REQ_MNM_VERSION = '3.0.0-alpha.2';
+	const REQ_WP_VERSION  = '6.5';
 
 	/**
 	 * The wc-ajax action that returns a child item's details.
@@ -73,6 +74,13 @@ class Plugin {
 	 * Interactivity API store namespace.
 	 */
 	const STORE = 'wc-mnm-quickview';
+
+	/**
+	 * Why the plugin isn't running, shown as an admin notice.
+	 *
+	 * @var string
+	 */
+	private $notice = '';
 
 	/**
 	 * Whether the modal should be printed in the footer.
@@ -114,12 +122,9 @@ class Plugin {
 	 */
 	public function init() {
 
-		// Quietly quit if WooCommerce or Mix and Match are missing or too old.
-		if ( ! function_exists( 'WC' ) || version_compare( WC()->version, self::REQ_WC_VERSION ) < 0 ) {
-			return false;
-		}
-
-		if ( ! function_exists( 'wc_mix_and_match' ) || version_compare( wc_mix_and_match()->version, self::REQ_MNM_VERSION ) < 0 ) {
+		// Stop, with an admin notice, if WooCommerce, Mix and Match or WordPress are missing or too old.
+		if ( ! $this->meets_requirements() ) {
+			add_action( 'admin_notices', array( $this, 'admin_notice' ) );
 			return false;
 		}
 
@@ -151,6 +156,56 @@ class Plugin {
 		// Per-product button text.
 		add_action( 'wc_mnm_admin_product_options', array( $this, 'product_options' ), 60, 2 );
 		add_action( 'woocommerce_admin_process_product_object', array( $this, 'save_product_options' ) );
+	}
+
+	/*-----------------------------------------------------------------------------------*/
+	/* Requirements */
+	/*-----------------------------------------------------------------------------------*/
+
+	/**
+	 * Check the required versions, and keep the reason when one isn't met.
+	 *
+	 * The quick view is built on the Mix and Match container store, which needs Mix and Match 3.0 and the
+	 * Interactivity API from WordPress 6.5.
+	 *
+	 * @return bool
+	 */
+	protected function meets_requirements() {
+
+		if ( ! function_exists( 'WC' ) || version_compare( WC()->version, self::REQ_WC_VERSION ) < 0 ) {
+			/* translators: %s: Required WooCommerce version. */
+			$this->notice = sprintf( __( 'WC Mix and Match - Quickview requires WooCommerce %s or newer.', 'wc-mnm-quickview' ), self::REQ_WC_VERSION );
+			return false;
+		}
+
+		if ( ! function_exists( 'wc_mix_and_match' ) || version_compare( wc_mix_and_match()->version, self::REQ_MNM_VERSION ) < 0 ) {
+			/* translators: %s: Required Mix and Match version. */
+			$this->notice = sprintf( __( 'WC Mix and Match - Quickview requires Mix and Match %s or newer.', 'wc-mnm-quickview' ), self::REQ_MNM_VERSION );
+			return false;
+		}
+
+		if ( ! self::is_supported() ) {
+			$this->notice = class_exists( ContainerStore::class )
+				/* translators: %s: Required WordPress version. */
+				? sprintf( __( 'WC Mix and Match - Quickview requires WordPress %s or newer.', 'wc-mnm-quickview' ), self::REQ_WP_VERSION )
+				/* translators: %s: Required Mix and Match version. */
+				: sprintf( __( 'WC Mix and Match - Quickview requires the Mix and Match container store, from Mix and Match %s.', 'wc-mnm-quickview' ), self::REQ_MNM_VERSION );
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Say why the plugin isn't running.
+	 */
+	public function admin_notice() {
+
+		if ( ! $this->notice || ! current_user_can( 'activate_plugins' ) ) {
+			return;
+		}
+
+		printf( '<div class="notice notice-error"><p>%s</p></div>', esc_html( $this->notice ) );
 	}
 
 	/*-----------------------------------------------------------------------------------*/
