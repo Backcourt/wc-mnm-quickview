@@ -10,7 +10,7 @@
  * Text Domain: wc-mnm-quickview
  * Domain Path: /languages
  *
- * Requires at least: 6.4
+ * Requires at least: 6.5
  * Tested up to: 6.9
  * Requires PHP: 8.0
  * Requires Plugins: woocommerce, woocommerce-mix-and-match-products
@@ -28,6 +28,7 @@
 namespace WC\MNM\Quickview;
 
 use Backcourt\MNMQuickView\Vendor\Fragen;
+use Backcourt\MixAndMatch\Interactivity\ContainerStore;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -62,6 +63,23 @@ class Plugin {
 	 * The wc-ajax action that returns a child item's details.
 	 */
 	const AJAX_ACTION = 'mnm_get_child_item_quick_view';
+
+	/**
+	 * Script module ID.
+	 */
+	const MODULE = '@wc-mnm-quickview/quick-view';
+
+	/**
+	 * Interactivity API store namespace.
+	 */
+	const STORE = 'wc-mnm-quickview';
+
+	/**
+	 * Whether the modal should be printed in the footer.
+	 *
+	 * @var bool
+	 */
+	private $needs_modal = false;
 
 	/**
 	 * Product meta keys for the per-product button text.
@@ -117,12 +135,11 @@ class Plugin {
 		// Load the scripts with any Mix and Match form.
 		add_action( 'woocommerce_mix-and-match_add_to_cart', array( $this, 'load_scripts' ), 0 );
 
-		// Forms loaded with ajax: editing an order item in the admin, or a subscription in My Account.
-		add_action( 'wc_mnm_container_editing_enqueue_scripts', array( $this, 'load_scripts' ) );
+		// Forms loaded with ajax, ex: editing a subscription in My Account.
 		add_action( 'wc_mnm_subscription_editing_enqueue_scripts', array( $this, 'load_scripts' ) );
 
-		// Pass each container's button text to the script.
-		add_filter( 'wc_mnm_container_data_attributes', array( $this, 'add_data_attributes' ), 10, 2 );
+		// The modal.
+		add_action( 'wp_footer', array( $this, 'print_modal' ) );
 
 		// The quick view replaces the child item image lightbox.
 		add_filter( 'wc_mnm_add_to_cart_script_parameters', array( $this, 'disable_child_item_lightbox' ) );
@@ -165,7 +182,7 @@ class Plugin {
 	/*-----------------------------------------------------------------------------------*/
 
 	/**
-	 * Register the script and stylesheet.
+	 * Register the stylesheet and script module.
 	 */
 	public function register_scripts() {
 
@@ -181,14 +198,18 @@ class Plugin {
 			}
 		}
 
+		if ( ! self::is_supported() ) {
+			return;
+		}
+
 		$script_path = $this->get_asset_path( 'assets/js/frontend/quick-view.js' );
 
-		wp_register_script(
-			'wc-mnm-quickview',
+		// Native ES module, the imports resolve through the import map so there is no build step.
+		wp_register_script_module(
+			self::MODULE,
 			$this->plugin_url( $script_path ),
-			array( 'jquery', 'wc-add-to-cart-mnm' ),
-			$this->get_file_version( $script_path ),
-			true
+			array( '@wordpress/interactivity', ContainerStore::MODULE ),
+			$this->get_file_version( $script_path )
 		);
 	}
 
@@ -206,19 +227,18 @@ class Plugin {
 		}
 
 		// Registered on init, but make sure in case this runs early.
-		if ( ! wp_script_is( 'wc-mnm-quickview', 'registered' ) ) {
+		if ( ! wp_style_is( 'wc-mnm-quickview', 'registered' ) ) {
 			$this->register_scripts();
 		}
 
 		wp_enqueue_style( 'wc-mnm-quickview' );
-		wp_enqueue_script( 'wc-mnm-quickview' );
+		wp_enqueue_script_module( self::MODULE );
 
-		if ( ! wp_scripts()->get_data( 'wc-mnm-quickview', 'data' ) ) {
-			wp_localize_script(
-				'wc-mnm-quickview',
-				'wc_mnm_quick_view_params',
+		if ( ! $this->needs_modal ) {
+			wp_interactivity_state(
+				self::STORE,
 				array(
-					'ajax_url'    => \WC_AJAX::get_endpoint( self::AJAX_ACTION ),
+					'ajaxUrl'    => \WC_AJAX::get_endpoint( self::AJAX_ACTION ),
 					/**
 					 * Whether to load every child item's details once the page is idle, so the quick view opens
 					 * instantly. When false, they load on the first hover or focus of a child item.
@@ -227,11 +247,13 @@ class Plugin {
 					 *
 					 * @param bool $preload
 					 */
-					'preload_all' => (bool) apply_filters( 'wc_mnm_quick_view_preload_all', true ),
-					'i18n'        => self::get_i18n(),
+					'preloadAll' => (bool) apply_filters( 'wc_mnm_quick_view_preload_all', true ),
+					'i18n'       => self::get_i18n(),
 				)
 			);
 		}
+
+		$this->needs_modal = true;
 	}
 
 	/*-----------------------------------------------------------------------------------*/
@@ -239,24 +261,69 @@ class Plugin {
 	/*-----------------------------------------------------------------------------------*/
 
 	/**
-	 * Add the container's button text to the form, so forms loaded with ajax get them too.
+	 * Print the modal once, on pages with a Mix and Match form.
 	 *
-	 * @param array                     $attributes
-	 * @param \WC_Product_Mix_and_Match $container
-	 * @return array
+	 * The buttons and text are rendered from the store with Interactivity API directives. The child item's
+	 * details are loaded into .wc-mnm-quick-view__content.
+	 *
+	 * NB: One data-wp-watch per element, WordPress 6.9+ ignores data-wp-watch--suffix.
 	 */
-	public function add_data_attributes( $attributes, $container ) {
+	public function print_modal() {
 
-		if ( self::is_enabled( $container ) ) {
-			$attributes['quick_view_i18n'] = wp_json_encode(
-				array(
-					'addToBox'      => self::get_add_to_box_text( $container ),
-					'removeFromBox' => self::get_remove_from_box_text( $container ),
-				)
-			);
+		if ( ! $this->needs_modal ) {
+			return;
 		}
 
-		return $attributes;
+		$i18n = self::get_i18n();
+
+		ob_start();
+		?>
+		<dialog
+			id="wc-mnm-quick-view"
+			class="wc-mnm-quick-view woocommerce"
+			aria-labelledby="wc-mnm-quick-view-title"
+			data-wp-interactive="<?php echo esc_attr( self::STORE ); ?>"
+			data-wp-init="callbacks.init"
+			data-wp-on-document--click="actions.onDocumentClick"
+			data-wp-on-document--pointerover="actions.onDocumentPointerOver"
+			data-wp-on-document--pointerdown="actions.onDocumentIntent"
+			data-wp-on-document--focusin="actions.onDocumentIntent"
+			data-wp-on--click="actions.onDialogClick"
+			data-wp-on--keydown="actions.onKeydown"
+			data-wp-on--close="actions.onClose"
+			data-wp-class--is-loading="state.isLoading"
+			data-wp-bind--aria-busy="state.isLoading"
+		>
+			<div class="wc-mnm-quick-view__inner" data-wp-watch="callbacks.watchContainers">
+				<div class="wc-mnm-quick-view__header">
+					<div class="wc-mnm-quick-view__nav" data-wp-bind--hidden="state.hideNav">
+						<button type="button" class="wc-mnm-quick-view__prev" aria-label="<?php echo esc_attr( $i18n['previous'] ); ?>" data-wp-bind--aria-label="state.prevLabel" data-wp-bind--disabled="!state.hasPrev" data-wp-on--click="actions.prev"><span aria-hidden="true">&lsaquo;</span></button>
+						<button type="button" class="wc-mnm-quick-view__next" aria-label="<?php echo esc_attr( $i18n['next'] ); ?>" data-wp-bind--aria-label="state.nextLabel" data-wp-bind--disabled="!state.hasNext" data-wp-on--click="actions.next"><span aria-hidden="true">&rsaquo;</span></button>
+					</div>
+					<button type="button" class="wc-mnm-quick-view__close" aria-label="<?php echo esc_attr( $i18n['close'] ); ?>" data-wp-on--click="actions.close"><span aria-hidden="true">&times;</span></button>
+				</div>
+				<div class="wc-mnm-quick-view__content" data-wp-watch="callbacks.renderContent" data-wp-on--click="actions.onContentClick"></div>
+				<p class="wc-mnm-quick-view__error woocommerce-error" role="alert" data-wp-bind--hidden="state.hideError"><?php echo esc_html( $i18n['error'] ); ?></p>
+				<div class="wc-mnm-quick-view__footer" data-wp-bind--hidden="state.hideFooter" data-wp-watch="callbacks.watchFocus">
+					<div class="wc-mnm-quick-view__status" role="status" aria-live="polite">
+						<p class="wc-mnm-quick-view__in-box" data-wp-bind--hidden="state.hideInBox" data-wp-text="state.inBoxText"></p>
+						<ul class="wc-mnm-quick-view__messages" data-wp-watch="callbacks.renderMessages"></ul>
+					</div>
+					<div class="wc-mnm-quick-view__actions">
+						<div class="wc-mnm-quick-view__stepper" data-wp-bind--hidden="state.hideStepper">
+							<button type="button" class="wc-mnm-quick-view__decrease button" aria-label="<?php echo esc_attr( $i18n['decrease'] ); ?>" data-wp-bind--disabled="state.cannotDecrease" data-wp-on--click="actions.decrease">&minus;</button>
+							<span class="wc-mnm-quick-view__quantity" aria-hidden="true" data-wp-text="state.quantity"></span>
+							<button type="button" class="wc-mnm-quick-view__increase button" aria-label="<?php echo esc_attr( $i18n['increase'] ); ?>" data-wp-bind--disabled="state.cannotIncrease" data-wp-on--click="actions.increase">+</button>
+						</div>
+						<button type="button" class="wc-mnm-quick-view__add button alt wp-element-button" data-wp-bind--hidden="state.hideAdd" data-wp-bind--disabled="state.cannotIncrease" data-wp-class--disabled="state.cannotIncrease" data-wp-text="state.labels.addToBox" data-wp-on--click="actions.add"></button>
+						<button type="button" class="wc-mnm-quick-view__remove button" data-wp-bind--hidden="state.hideRemove" data-wp-text="state.labels.removeFromBox" data-wp-on--click="actions.decrease"></button>
+					</div>
+				</div>
+			</div>
+		</dialog>
+		<?php
+		// Render the directives on the server too, so nothing that should be hidden shows before the module loads.
+		echo wp_interactivity_process_directives( ob_get_clean() ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above.
 	}
 
 	/**
@@ -297,9 +364,18 @@ class Plugin {
 		$product = $child_item->get_product();
 		$title   = $product ? $product->get_name() : '';
 
-		// The script adds aria-haspopup, wp_kses_post() would remove it here.
+		// What the modal needs to know about the item. The script adds aria-haspopup, wp_kses_post() would remove it here.
+		$data = array(
+			'containerId'   => $container->get_id(),
+			'productId'     => $child_item->get_product_id(),
+			'title'         => $title,
+			'addToBox'      => self::get_add_to_box_text( $container ),
+			'removeFromBox' => self::get_remove_from_box_text( $container ),
+		);
+
 		$button = sprintf(
-			'<button type="button" class="wc-mnm-quick-view-button" data-wc-mnm-quick-view aria-label="%1$s"><span class="wc-mnm-quick-view-button__text">%2$s</span></button>',
+			'<button type="button" class="wc-mnm-quick-view-button" data-wc-mnm-quick-view="%1$s" aria-label="%2$s"><span class="wc-mnm-quick-view-button__text">%3$s</span></button>',
+			esc_attr( wp_json_encode( $data ) ),
 			esc_attr( str_replace( '%s', $title, $i18n['openLabel'] ) ),
 			esc_html( $i18n['quickView'] )
 		);
@@ -453,7 +529,32 @@ class Plugin {
 		 * @param bool             $is_enabled
 		 * @param \WC_Product|null $container
 		 */
-		return (bool) apply_filters( 'wc_mnm_has_quick_view', true, $container );
+		return self::is_supported() && ! self::is_admin_request() && (bool) apply_filters( 'wc_mnm_has_quick_view', true, $container );
+	}
+
+	/**
+	 * Whether the Mix and Match container store and the Interactivity API are available.
+	 *
+	 * @return bool
+	 */
+	public static function is_supported() {
+		return class_exists( ContainerStore::class ) && ContainerStore::is_supported();
+	}
+
+	/**
+	 * Whether this is an admin page, or an ajax request from one, ex: editing an order item.
+	 *
+	 * The container store isn't loaded in the admin.
+	 *
+	 * @return bool
+	 */
+	protected static function is_admin_request() {
+
+		if ( ! is_admin() ) {
+			return false;
+		}
+
+		return ! wp_doing_ajax() || 0 === strpos( (string) wp_get_referer(), admin_url() );
 	}
 
 	/**
