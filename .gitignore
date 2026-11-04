@@ -44,6 +44,6 @@ none
 .vscode/
 
 # Composer
-vendor/
-vendor-prefixed/
-bin/
+/vendor/*
+/vendor-prefixed/*
+bin/strauss.phar
