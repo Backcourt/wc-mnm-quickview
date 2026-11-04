@@ -6,7 +6,7 @@ Mini-extension for [WooCommerce Mix and Match](https://woocommerce.com/products/
 
 It's built on the Interactivity API and the Mix and Match container store (`@wc-mix-and-match/container`): the modal reads each child item's state from the store and changes quantities with its actions, so it doesn't depend on how the add to cart form is rendered. It works in forms loaded with ajax, such as editing a subscription, but not in the admin, where the store isn't loaded. There's no build step and no React.
 
-![A modal window showing some details such as thumbnail, title, and description of a red wine product](https://github.com/kathyisawesome/wc-mnm-quickview/assets/507025/9879c570-c021-48db-8918-eb6205501b4a)
+![A modal window showing some details such as thumbnail, title, and description of a red wine product](https://github.com/Backcourt/wc-mnm-quickview/assets/507025/9879c570-c021-48db-8918-eb6205501b4a)
 
 ### Customizing the button text
 

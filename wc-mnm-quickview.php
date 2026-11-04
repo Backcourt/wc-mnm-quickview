@@ -4,8 +4,8 @@
  * Plugin URI: https://github.com/backcourt/wc-mnm-quickview
  * Version: 3.0.0-beta.1
  * Description: Open a child item's product details in a pop-up, with a button to add it to the container.
- * Author: Kathy Darling
- * Author URI: http://www.backcourt.io/
+ * Author: Backcourt Development
+ * Author URI: https://www.backcourt.io/
  *
  * Text Domain: wc-mnm-quickview
  * Domain Path: /languages
@@ -20,7 +20,7 @@
  * 
  * Update URI: https://www.backcourt.io/
  *
- * Copyright: © 2020 Kathy Darling
+ * Copyright: © 2020 Backcourt Development
  * License: GNU General Public License v3.0
  * License URI: http://www.gnu.org/licenses/gpl-3.0.html
  */
