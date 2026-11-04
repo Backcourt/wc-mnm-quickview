@@ -30,7 +30,7 @@ Updates come from the Backcourt update server.
 * Update: Requires Mix and Match 3.0. With an older Mix and Match, WooCommerce or WordPress, an admin notice says what to update, and the quick view doesn't load.
 * Breaking: The script is now the @wc-mnm-quickview/quick-view script module. The wc_mnm_quick_view_params global is removed, and the wc-mnm-quick-view-loaded event is a DOM event on the dialog with { containerId, productId } in its detail.
 * New: The modal is printed once in the footer, and its buttons and text render from the store.
-* New: Each quick view button carries its item's data, including the add and remove button text, instead of the form.
+* New: The item order, names and stock text come from the container store, so unavailable items say why, ex: "Out of stock". The quick view button only carries the container's add and remove button text.
 * Update: The quick view button uses the pointer cursor instead of the zoom cursor.
 * Update: The quick view isn't loaded in the admin, ex: when editing an order item, because the container store isn't available there.
 

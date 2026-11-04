@@ -419,11 +419,9 @@ class Plugin {
 		$product = $child_item->get_product();
 		$title   = $product ? $product->get_name() : '';
 
-		// What the modal needs to know about the item. The script adds aria-haspopup, wp_kses_post() would remove it here.
+		// The container's button text. The item's IDs, name and stock come from the container store.
+		// The script adds aria-haspopup, wp_kses_post() would remove it here.
 		$data = array(
-			'containerId'   => $container->get_id(),
-			'productId'     => $child_item->get_product_id(),
-			'title'         => $title,
 			'addToBox'      => self::get_add_to_box_text( $container ),
 			'removeFromBox' => self::get_remove_from_box_text( $container ),
 		);

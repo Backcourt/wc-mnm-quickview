@@ -96,48 +96,58 @@ const toId = ( id ) => parseInt( id, 10 ) || 0;
 const isVisible = ( el ) => ( el.checkVisibility ? el.checkVisibility() : el.getClientRects().length > 0 );
 
 /**
- * Read a child item's IDs and quick view data from the page.
+ * Get a child item's name from the container store.
  *
- * The quick view button carries the data. Items without one, ex: when the image is turned off, fall
- * back to the child item's own data attributes.
+ * WordPress 6.5 and 6.6 don't print the store's server data, so fall back to the title in the form.
+ *
+ * @param {number}       containerId
+ * @param {number}       productId
+ * @param {Element|null} itemEl      The child item in the form, .mnm_item.
+ * @return {string}
+ */
+const getName = ( containerId, productId, itemEl ) => {
+	const container = mnm.containers[ containerId ];
+	const item      = container && container.items[ productId ];
+	const titleEl   = itemEl && itemEl.querySelector( '.woocommerce-loop-product__title' );
+
+	return ( item && item.name ) || ( titleEl ? titleEl.textContent.trim() : '' );
+};
+
+/**
+ * Read a child item's IDs from the form, plus the container's quick view button text from its button.
  *
  * @param {Element} itemEl A child item, .mnm_item.
- * @return {Object|null} { containerId, productId, title, addToBox, removeFromBox, trigger, itemEl }
+ * @return {Object|null} { containerId, productId, title, addToBox, removeFromBox, trigger, itemEl, formEl }
  */
 const getItemData = ( itemEl ) => {
-	const button  = itemEl.querySelector( '[data-wc-mnm-quick-view]' );
-	const titleEl = itemEl.querySelector( '.woocommerce-loop-product__title' );
-	let data      = {};
-
-	if ( button ) {
-		try {
-			data = JSON.parse( button.getAttribute( 'data-wc-mnm-quick-view' ) ) || {};
-		} catch ( e ) {
-			data = {};
-		}
-	}
-
-	if ( ! data.containerId ) {
-		const form   = itemEl.closest( 'form' );
-		const cartEl = form && form.querySelector( '[data-container_id]' );
-
-		data.containerId = cartEl ? cartEl.getAttribute( 'data-container_id' ) : 0;
-	}
-
-	const containerId = toId( data.containerId );
-	const productId   = toId( data.productId || itemEl.getAttribute( 'data-mnm_item_id' ) );
+	const formEl      = itemEl.closest( 'form' );
+	const cartEl      = formEl && formEl.querySelector( '[data-container_id]' );
+	const button      = itemEl.querySelector( '[data-wc-mnm-quick-view]' );
+	const containerId = toId( cartEl ? cartEl.getAttribute( 'data-container_id' ) : 0 );
+	const productId   = toId( itemEl.getAttribute( 'data-mnm_item_id' ) );
+	let labels        = {};
 
 	if ( ! containerId || ! productId ) {
 		return null;
 	}
 
+	if ( button && button.getAttribute( 'data-wc-mnm-quick-view' ) ) {
+		try {
+			labels = JSON.parse( button.getAttribute( 'data-wc-mnm-quick-view' ) ) || {};
+		} catch ( e ) {
+			labels = {};
+		}
+	}
+
 	return {
-		...data,
 		containerId,
 		productId,
-		title: data.title || ( titleEl ? titleEl.textContent.trim() : '' ),
+		title: getName( containerId, productId, itemEl ),
+		addToBox: labels.addToBox || '',
+		removeFromBox: labels.removeFromBox || '',
 		trigger: itemEl.querySelector( TRIGGERS ),
 		itemEl,
+		formEl,
 	};
 };
 
@@ -167,16 +177,23 @@ const isKnown = ( data ) => {
 };
 
 /**
- * Get the shown child items of a container, in the order they appear.
+ * Get the child items of a form that are shown, ex: not hidden by a filter, in display order.
  *
- * @param {number} containerId
+ * The order comes from the container store. Whether an item is shown comes from the page.
+ *
+ * @param {Object} data Item data of the open item.
  * @return {Object[]} Item data.
  */
-const getVisibleItems = ( containerId ) =>
-	[ ...document.querySelectorAll( '.mnm_item' ) ]
-		.filter( ( itemEl ) => ! ( dialogEl && dialogEl.contains( itemEl ) ) && isVisible( itemEl ) )
+const getVisibleItems = ( data ) => {
+	const container = mnm.containers[ data.containerId ];
+	const ids       = container && container.itemIds ? container.itemIds : [];
+
+	return ids
+		.map( ( id ) => data.formEl && data.formEl.querySelector( '.mnm_item[data-mnm_item_id="' + id + '"]' ) )
+		.filter( ( itemEl ) => itemEl && isVisible( itemEl ) )
 		.map( getItemData )
-		.filter( ( data ) => data && data.containerId === containerId );
+		.filter( Boolean );
+};
 
 /**
  * Say that the quick view buttons and title links open a dialog.
@@ -374,7 +391,7 @@ const load = () => {
  * @param {Element} trigger The element that opened it, focus returns there on close.
  */
 const openItem = ( data, trigger ) => {
-	const items = getVisibleItems( data.containerId );
+	const items = getVisibleItems( data );
 	const index = items.findIndex( ( item ) => item.productId === data.productId );
 
 	siblings = {
@@ -620,7 +637,9 @@ const { state } = store( NAMESPACE, {
 			const notes     = [ ...state.messages ];
 
 			if ( 'unavailable' === state.type ) {
-				notes.push( escapeHtml( state.i18n.unavailable ) );
+				// The form's reason, ex: "Out of stock". Missing before WordPress 6.7, see getName().
+				const availability = state.item && state.item.availability;
+				notes.push( escapeHtml( ( availability && availability.text ) || state.i18n.unavailable ) );
 			} else if ( container && container.isFull && ! state.isSelected && ! notes.length ) {
 				notes.push( escapeHtml( state.i18n.full ) );
 			}
