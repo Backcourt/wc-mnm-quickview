@@ -40,7 +40,7 @@ add_filter( 'wc_mnm_quick_view_i18n', function( $i18n ) {
 
 ### Development
 
-The script and stylesheet are plain files, `assets/js/frontend/quick-view.js` and `assets/css/frontend/quick-view.css`. `npm run dev` makes the minified and RTL copies, which are used when present and `SCRIPT_DEBUG` is off.
+The script is a plain file, `assets/js/frontend/quick-view.js`. The styles are written in `assets/scss/frontend/quick-view.scss` and compiled into `assets/css/`, which isn't committed. Run `npm install`, then `npm run dev` to build the CSS and the minified and RTL copies, or `npm run watch` to rebuild on save. The minified files are used when present and `SCRIPT_DEBUG` is off.
 
 ### Important
 

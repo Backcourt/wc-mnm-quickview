@@ -16,6 +16,7 @@ npm-debug.log
 
 # Sass
 .sass-cache/
+*.css.map
 
 # OS X metadata
 .DS_Store
@@ -33,11 +34,10 @@ tmp/
 logs/
 package-lock.json
 
-# Compiled assets
+# Compiled assets, built from assets/scss/ and assets/js/
+assets/css/
 assets/js/frontend/*.min.js
 assets/js/backend/*.min.js
-assets/css/**/*.min.css
-assets/css/**/*-rtl.css
 languages/
 none
 

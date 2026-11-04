@@ -1,5 +1,6 @@
 module.exports = function(grunt) {
 
+	const sass = require( 'sass' );
 	require( 'load-grunt-tasks' )( grunt );
 
 	// Project configuration.
@@ -12,7 +13,25 @@ module.exports = function(grunt) {
 			css: 'assets/css',
 			fonts: 'assets/fonts',
 			js: 'assets/js',
-			php: 'includes'
+			php: 'includes',
+			scss: 'assets/scss'
+		},
+
+		// Compile all .scss files.
+		sass: {
+			compile: {
+				options: {
+					implementation: sass,
+					sourceMap: false
+				},
+				files: [{
+					expand: true,
+					cwd: '<%= dirs.scss %>/frontend/',
+					src: ['*.scss'],
+					dest: '<%= dirs.css %>/frontend/',
+					ext: '.css'
+				}]
+			}
 		},
 
 		// Generate RTL .css files.
@@ -125,12 +144,9 @@ module.exports = function(grunt) {
 		watch: {
 			css: {
 				files: [
-				'<%= dirs.css %>/admin/*.css',
-				'<%= dirs.css %>/frontend/*.css',
-				'!<%= dirs.css %>/**/*.min.css',
-				'!<%= dirs.css %>/**/*-rtl.css'
+				'<%= dirs.scss %>/**/*.scss'
 				],
-				tasks: ['rtlcss', 'postcss', 'cssmin']
+				tasks: ['css']
 			},
 			js: {
 				files: [
@@ -183,6 +199,7 @@ module.exports = function(grunt) {
 				'!composer.lock',
 				'!vendor/**',
 				'!bin/**',
+				'!assets/scss/**',
 				'!none',
 				'!includes/compatibility/backcompatibility/**'
 				],
@@ -276,6 +293,7 @@ module.exports = function(grunt) {
 	grunt.registerTask(
         'css',
         [
+		'sass',
 		'rtlcss',
 		'postcss',
 		'cssmin'
