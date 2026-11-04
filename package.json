@@ -39,7 +39,7 @@
     "dev": "grunt assets",
     "watch": "grunt watch",
     "makepot": "composer run-script makepot",
-    "prerelease": "npm run makepot && grunt prerelease",
+    "betarelease": "npm run release",
     "release": "npm run makepot && grunt release"
   }
 }

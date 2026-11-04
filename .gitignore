@@ -9,9 +9,9 @@ sftp-config.json
 .idea
 
 # Grunt
-node_modules/
-deploy/
-build/
+/node_modules/
+/deploy/
+/build/
 npm-debug.log
 
 # Sass
@@ -32,7 +32,6 @@ tmp/
 
 # Logs
 logs/
-package-lock.json
 
 # Compiled assets, built from assets/scss/ and assets/js/
 assets/css/

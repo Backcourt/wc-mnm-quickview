@@ -5,176 +5,165 @@
 name: Release
 
 on:
-  push:
-    tags:
-      # Semver (https://semver.org/) release pattern.
-      - '[0-9]+.[0-9]+.[0-9]+*'
+    push:
+        tags:
+            # Semver (https://semver.org/) release pattern.
+            - '[0-9]+.[0-9]+.[0-9]+*'
 
 jobs:
-  # Build distribution release.
-  #
-  # Performs the following steps:
-  # - Checks out the repository.
-  # - Sets up PHP with Composer and WP-CLI.
-  # - Get Composer Cache Directory.
-  # - Sets up Composer Caching.
-  # - Logs debug information.
-  # - Install Composer dependencies, production only (prefixed with Strauss).
-  # - Verify prefixed packages.
-  # - Setup NodeJS.
-  # - Get NPM cache directory.
-  # - Sets up NPM Caching.
-  # - Install NPM dependencies.
-  # - Get release version.
-  # - Check for Alpha release.
-  # - Check for Beta release.
-  # - Check for Release Candidate release.
-  # - Logs debug information.
-  # - Build release (generates the POT file with WP-CLI):
-  #    - Pre-release.
-  #    - Stable.
-  # - Verify release zip.
-  # - Add package to GitHub releases.
+    # Build distribution release.
+    #
+    # Performs the following steps:
+    # - Checks out the repository.
+    # - Sets up PHP with Composer and WP-CLI (WP-CLI generates the .pot file).
+    # - Get Composer Cache Directory.
+    # - Sets up Composer Caching.
+    # - Logs debug information.
+    # - Install Composer dependencies without development dependencies. Strauss (downloaded as a phar) prefixes them into vendor-prefixed/.
+    # - Setup NodeJS.
+    # - Install NPM dependencies.
+    # - Get release version.
+    # - Check for Alpha release.
+    # - Check for Beta release.
+    # - Check for Release Candidate release.
+    # - Logs debug information.
+    # - Build release:
+    #    - Pre-release.
+    #    - Stable.
+    # - Verify the release zip.
+    # - Extract release notes from the readme.txt changelog.
+    # - Add package to GitHub releases.
 
-  dist:
-    name: "Build distribution release."
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    env:
-      release: stable
-    steps:
-
-      - name: "Checks out the repository."
-        uses: "actions/checkout@v7"
-
-      # WP-CLI comes with the i18n command, so the dev packages aren't needed to make the POT file.
-      - name: "Sets up PHP with Composer and WP-CLI."
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          tools: composer, wp-cli
+    dist:
+        name: 'Build distribution release.'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
         env:
-          COMPOSER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            release: stable
+        steps:
+            - name: 'Checks out the repository.'
+              uses: 'actions/checkout@v7'
 
-      - name: "Get Composer Cache Directory."
-        id: composer-cache
-        run: |
-          echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+            - name: 'Sets up PHP with Composer and WP-CLI.'
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: '8.3'
+                  tools: composer, wp-cli
+              env:
+                  COMPOSER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: "Sets up Composer Caching."
-        uses: "actions/cache@v6"
-        with:
-          path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-php-composer-build-${{ hashFiles('**/composer.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-php-composer-build-
+            - name: 'Get Composer Cache Directory.'
+              id: composer-cache
+              run: |
+                  echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
 
-      - name: "Logs debug information."
-        run: |
-          php --version
-          composer --version
-          wp --allow-root --version
+            - name: 'Sets up Composer Caching.'
+              uses: 'actions/cache@v6'
+              with:
+                  path: ${{ steps.composer-cache.outputs.dir }}
+                  key: ${{ runner.os }}-php-composer-build-${{ hashFiles('**/composer.json', '**/composer.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-php-composer-build-
 
-      # Production dependencies only. post-install-cmd downloads strauss.phar and prefixes them into vendor-prefixed/.
-      - name: "Install Composer dependencies."
-        run: |
-          composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+            - name: 'Logs debug information.'
+              run: |
+                  php --version
+                  composer --version
+                  wp --allow-root --version
 
-      - name: "Verify prefixed packages."
-        run: |
-          if [ ! -f ./vendor-prefixed/autoload.php ]; then
-            echo "::error::vendor-prefixed/autoload.php missing. Strauss did not run."
-            exit 1
-          fi
-          if [ -d ./vendor/afragen ]; then
-            echo "::error::Unprefixed dependencies found in vendor/."
-            exit 1
-          fi
+            - name: 'Install Composer dependencies without development dependencies.'
+              run: |
+                  composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
-      - name: "Setup NodeJS."
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
+            - name: 'Setup NodeJS.'
+              uses: actions/setup-node@v6
+              with:
+                  node-version-file: '.nvmrc'
+                  cache: 'npm'
 
-      - name: "Get NPM cache directory."
-        id: npm-cache-dir
-        run: |
-          echo "dir=$(npm config get cache)" >> $GITHUB_OUTPUT
+            - name: 'Install NPM dependencies.'
+              run: npm ci
 
-      - name: "Sets up NPM Caching."
-        uses: actions/cache@v6
-        with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: ${{ runner.os }}-node-npm-build-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-npm-build-
+            - name: 'Get release version.'
+              run: |
+                  echo "release_tag=$(node -p -e "require('./package.json').version")" >> $GITHUB_ENV
 
-      - name: "Install NPM dependencies."
-        run: npm install
+            - name: 'Get release file base name.'
+              run: |
+                  echo "release_name=$(node -p -e "require('./package.json').name")" >> $GITHUB_ENV
 
-      - name: "Get release version."
-        run: |
-          echo "release_tag=$(node -p -e "require('./package.json').version")" >> $GITHUB_ENV
+            - name: 'Check for Alpha release.'
+              if: ${{ contains(env.release_tag, '-alpha') }}
+              run: |
+                  echo "release_status=pre-release" >> $GITHUB_ENV
 
-      - name: "Get release file base name."
-        run: |
-          echo "release_name=$(node -p -e "require('./package.json').name")" >> $GITHUB_ENV
+            - name: 'Check for Beta release.'
+              if: ${{ contains(env.release_tag, '-beta') }}
+              run: |
+                  echo "release_status=pre-release" >> $GITHUB_ENV
 
-      - name: "Check for Alpha release."
-        if: ${{ contains(env.release_tag, '-alpha') }}
-        run: |
-          echo "release_status=pre-release" >> $GITHUB_ENV
+            - name: 'Check for Release Candidate release.'
+              if: ${{ contains(env.release_tag, '-rc') }}
+              run: |
+                  echo "release_status=pre-release" >> $GITHUB_ENV
 
-      - name: "Check for Beta release."
-        if: ${{ contains(env.release_tag, '-beta') }}
-        run: |
-          echo "release_status=pre-release" >> $GITHUB_ENV
+            - name: 'Logs debug information.'
+              run: |
+                  node --version
+                  npm --version
+                  echo ${{ env.release_tag }}
+                  echo ${{ env.release_status }}
 
-      - name: "Check for Release Candidate release."
-        if: ${{ contains(env.release_tag, '-rc') }}
-        run: |
-          echo "release_status=pre-release" >> $GITHUB_ENV
+            - name: 'Build release: Pre-release'
+              if: ${{ env.release_status == 'pre-release' }}
+              run: |
+                  npm run betarelease
 
-      - name: "Logs debug information."
-        run: |
-          node --version
-          npm --version
-          echo ${{ env.release_tag }}
-          echo ${{ env.release_status }}
+            - name: 'Build release: Stable'
+              if: ${{ env.release_status != 'pre-release' }}
+              run: |
+                  npm run release
 
-      # Both run "composer makepot" (WP-CLI) before Grunt builds the assets and the zip.
-      - name: "Build release: Pre-release"
-        if: ${{ env.release_status == 'pre-release' }}
-        run: |
-          npm run prerelease
+            - name: 'Verify the release zip.'
+              run: |
+                  zip="./deploy/${{ env.release_name }}-${{ env.release_tag }}.zip"
+                  dir="${{ env.release_name }}"
+                  if [ ! -f "$zip" ]; then
+                    echo "::error::Release zip not found at $zip"
+                    exit 1
+                  fi
+                  files="$(unzip -Z1 "$zip")"
+                  for file in vendor-prefixed/autoload.php assets/js/frontend/quick-view.min.js assets/css/frontend/quick-view.min.css assets/css/frontend/quick-view-rtl.min.css languages/${{ env.release_name }}.pot; do
+                    if ! echo "$files" | grep -qx "$dir/$file"; then
+                      echo "::error::$file is missing from the release zip."
+                      exit 1
+                    fi
+                  done
+                  if echo "$files" | grep -q "strauss.phar\|^$dir/vendor/\|^$dir/node_modules/"; then
+                    echo "::error::Build tools or unprefixed vendor packages found in the release zip."
+                    exit 1
+                  fi
 
-      - name: "Build release: Stable"
-        if: ${{ env.release_status != 'pre-release' }}
-        run: |
-          npm run release
+            - name: 'Extract release notes from the readme.txt changelog.'
+              run: |
+                  notes="$RUNNER_TEMP/release-notes.md"
+                  # Print the lines under "= <release_tag> <date> =" up to the next version heading.
+                  awk -v ver="${{ env.release_tag }}" '
+                    { sub(/\r$/, "") }
+                    /^= / { if (found) exit; if ($2 == ver) { found = 1; next } }
+                    found && NF { print }
+                  ' readme.txt > "$notes"
+                  if ! grep -q '[^[:space:]]' "$notes"; then
+                    echo "::warning::No readme.txt changelog entry found for version ${{ env.release_tag }}. The release body will be empty."
+                  fi
+                  echo "release_notes=$notes" >> $GITHUB_ENV
 
-      - name: "Verify release zip."
-        run: |
-          zip="./deploy/${{ env.release_name }}-${{ env.release_tag }}.zip"
-          ls -lh ./deploy || true
-          if [ ! -f "$zip" ]; then
-            echo "::error::Release zip not found at $zip"
-            exit 1
-          fi
-          if ! unzip -Z1 "$zip" | grep -qx "${{ env.release_name }}/vendor-prefixed/autoload.php"; then
-            echo "::error::vendor-prefixed/autoload.php is missing from the release zip."
-            exit 1
-          fi
-          if unzip -Z1 "$zip" | grep -q "strauss.phar"; then
-            echo "::error::strauss.phar must not ship in the release zip."
-            exit 1
-          fi
-
-      - name: "Add package to GitHub releases."
-        uses: softprops/action-gh-release@v3
-        with:
-          files: ./deploy/${{ env.release_name }}-${{ env.release_tag }}.zip
-          prerelease: ${{ env.release_status == 'pre-release' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - name: 'Add package to GitHub releases.'
+              uses: softprops/action-gh-release@v3
+              with:
+                  files: ./deploy/${{ env.release_name }}-${{ env.release_tag }}.zip
+                  body_path: ${{ env.release_notes }}
+                  prerelease: ${{ env.release_status == 'pre-release' }}
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
