@@ -366,12 +366,12 @@ class Plugin {
 					</div>
 					<div class="wc-mnm-quick-view__actions">
 						<div class="wc-mnm-quick-view__stepper" data-wp-bind--hidden="state.hideStepper">
-							<button type="button" class="wc-mnm-quick-view__decrease button" aria-label="<?php echo esc_attr( $i18n['decrease'] ); ?>" data-wp-bind--disabled="state.cannotDecrease" data-wp-on--click="actions.decrease">&minus;</button>
+							<button type="button" class="wc-mnm-quick-view__decrease button wp-element-button" aria-label="<?php echo esc_attr( $i18n['decrease'] ); ?>" data-wp-bind--disabled="state.cannotDecrease" data-wp-on--click="actions.decrease">&minus;</button>
 							<span class="wc-mnm-quick-view__quantity" aria-hidden="true" data-wp-text="state.quantity"></span>
-							<button type="button" class="wc-mnm-quick-view__increase button" aria-label="<?php echo esc_attr( $i18n['increase'] ); ?>" data-wp-bind--disabled="state.cannotIncrease" data-wp-on--click="actions.increase">+</button>
+							<button type="button" class="wc-mnm-quick-view__increase button wp-element-button" aria-label="<?php echo esc_attr( $i18n['increase'] ); ?>" data-wp-bind--disabled="state.cannotIncrease" data-wp-on--click="actions.increase">+</button>
 						</div>
 						<button type="button" class="wc-mnm-quick-view__add button alt wp-element-button" data-wp-bind--hidden="state.hideAdd" data-wp-bind--disabled="state.cannotIncrease" data-wp-class--disabled="state.cannotIncrease" data-wp-text="state.labels.addToBox" data-wp-on--click="actions.add"></button>
-						<button type="button" class="wc-mnm-quick-view__remove button" data-wp-bind--hidden="state.hideRemove" data-wp-text="state.labels.removeFromBox" data-wp-on--click="actions.decrease"></button>
+						<button type="button" class="wc-mnm-quick-view__remove button wp-element-button" data-wp-bind--hidden="state.hideRemove" data-wp-text="state.labels.removeFromBox" data-wp-on--click="actions.decrease"></button>
 					</div>
 				</div>
 			</div>
