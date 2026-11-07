@@ -6,7 +6,15 @@ Mini-extension for [WooCommerce Mix and Match](https://woocommerce.com/products/
 
 It's built on the Interactivity API and the Mix and Match container store (`@wc-mix-and-match/container`): the modal reads each child item's state from the store and changes quantities with its actions, so it doesn't depend on how the add to cart form is rendered. It works in forms loaded with ajax, such as editing a subscription, but not in the admin, where the store isn't loaded. The script needs no build step and no React.
 
-![The quick view modal for a wine in a Mix and Match box: its photo, title, stock and description, with previous, next and close buttons, "Selected: 1", and a quantity stepper showing 1.](.github/screenshot.png)
+![A shopper opens the quick view from a wine's magnifier button, adds two to the box with the stepper, pages to the next wines and closes it. The selections and the container total update behind the modal.](.github/quick-view.gif)
+
+Each child item gets a magnifier button in the corner of its image:
+
+![A Mix and Match product with three package sizes and a grid of wines. Each wine image has a magnifier button in its corner, one shown in its hover state.](.github/product.png)
+
+The quick view opens over the product, with the item's photo, stock and description, previous, next and close buttons, and a quantity stepper:
+
+![The quick view modal for Capitulo Vinho Regional over the Mix and Match product page, showing "Selected: 2" and a quantity stepper. Behind it, the wine's quantity in the grid is 2 and the footer shows 2 of 4 items.](.github/screenshot.png)
 
 ### Customizing the button text
 
