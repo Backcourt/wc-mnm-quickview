@@ -73,6 +73,7 @@ let openerEl     = null; // The element that opened the modal, focus returns to 
 let siblings     = { prev: null, next: null }; // Item data, see getItemData().
 let pendingFocus = ''; // add|prev|next, where focus goes once the modal re-renders.
 let hoverTimer   = null;
+let htmlItem     = null; // { containerId, productId } of state.html.
 let requestId    = 0;
 
 /*-----------------------------------------------------------------*/
@@ -354,7 +355,8 @@ const preloadAll = ( containerId ) => {
  * Load the open child item's details into the modal.
  */
 const load = () => {
-	const id = ++requestId;
+	const id   = ++requestId;
+	const item = { containerId: state.containerId, productId: state.productId };
 
 	state.isLoading = true;
 	state.hasError  = false;
@@ -364,6 +366,7 @@ const load = () => {
 		.then(
 			( html ) => {
 				if ( id === requestId ) {
+					htmlItem   = item;
 					state.html = html;
 				}
 			},
@@ -574,6 +577,13 @@ const { state } = store( NAMESPACE, {
 		labels: { addToBox: '', removeFromBox: '' },
 		html: '',
 		messages: [], // HTML, from the last change of quantity.
+
+		/**
+		 * The child item whose details were last put in the modal, ex: { containerId: 345, productId: 82 }.
+		 * A new object each time, set once the HTML is in the page. Watch it from another store to work
+		 * with the details, the Interactivity API doesn't process directives in them.
+		 */
+		loaded: null,
 		title: '',
 		hasPrev: false,
 		hasNext: false,
@@ -859,7 +869,7 @@ const { state } = store( NAMESPACE, {
 		},
 
 		/**
-		 * Put the loaded details in the modal.
+		 * Put the loaded details in the modal, then say so in state.loaded.
 		 */
 		renderContent() {
 			const { ref } = getElement();
@@ -868,13 +878,8 @@ const { state } = store( NAMESPACE, {
 			ref.innerHTML = html;
 			ref.scrollTop = 0;
 
-			if ( html && dialogEl ) {
-				dialogEl.dispatchEvent(
-					new window.CustomEvent( 'wc-mnm-quick-view-loaded', {
-						bubbles: true,
-						detail: { containerId: state.containerId, productId: state.productId },
-					} )
-				);
+			if ( html && htmlItem ) {
+				state.loaded = { ...htmlItem };
 			}
 		},
 
