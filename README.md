@@ -40,14 +40,44 @@ For screen readers, the add, remove and stepper buttons name the product, ex: "A
 * `wc_mnm_quick_view_template_args` - change the data passed to the content template, gets the child item.
 * `wc_mnm_quick_view_preload_all` - return false to stop loading every child item's details once the page is idle. They then load on the first hover or focus of a child item, in one request per container.
 * `wc_mnm_quick_view_before_summary` / `wc_mnm_quick_view_after_summary` - add to the product details, get the child item and the container.
-* `wc-mnm-quick-view-loaded` - a DOM event fired on the quick view `<dialog>` after a product's details render, with `{ containerId, productId }` in `event.detail`. It bubbles, so listen on `document`:
+* The product details come from `templates/single-product/mnm/quick-view-content.php`, which can be overridden in your theme at `yourtheme/woocommerce/single-product/mnm/quick-view-content.php`.
 
-```js
-document.addEventListener( 'wc-mnm-quick-view-loaded', ( event ) => {
-	console.log( event.detail.productId );
+### Working with the quick view from JavaScript
+
+The quick view's store is `wc-mnm-quickview`. Its state includes `isOpen`, `containerId`, `productId` and `loaded`.
+
+The product details are HTML from the server, so the Interactivity API doesn't process directives in them. To work with them, watch `state.loaded`. It gets a new `{ containerId, productId }` object each time a product's details are put in the modal, after the HTML is in the page.
+
+Print an element for your store:
+
+```php
+add_action( 'wp_footer', function() {
+	echo '<div hidden data-wp-interactive="my-plugin" data-wp-watch="callbacks.onQuickViewLoaded"></div>';
 } );
 ```
-* The product details come from `templates/single-product/mnm/quick-view-content.php`, which can be overridden in your theme at `yourtheme/woocommerce/single-product/mnm/quick-view-content.php`.
+
+Then, in a script module that depends on `@wc-mnm-quickview/quick-view`:
+
+```js
+import { store } from '@wordpress/interactivity';
+
+const { state: quickView } = store( 'wc-mnm-quickview' );
+
+store( 'my-plugin', {
+	callbacks: {
+		onQuickViewLoaded() {
+			const loaded = quickView.loaded;
+
+			if ( ! loaded ) {
+				return;
+			}
+
+			const content = document.querySelector( '.wc-mnm-quick-view__content' );
+			// Set up loaded.productId's details in content.
+		},
+	},
+} );
+```
 
 ### Development
 
