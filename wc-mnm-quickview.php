@@ -57,7 +57,7 @@ class Plugin {
 	 * Minimum versions.
 	 */
 	const REQ_WC_VERSION  = '8.0.0';
-	const REQ_MNM_VERSION = '3.0.0-alpha.2';
+	const REQ_MNM_VERSION = '3.0.0-beta.1';
 	const REQ_WP_VERSION  = '6.5';
 
 	/**

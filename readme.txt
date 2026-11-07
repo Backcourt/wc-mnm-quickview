@@ -27,7 +27,7 @@ Updates come from the Backcourt update server.
 
 = 3.0.0-beta.2 XXXX.XX.XX =
 * Breaking: The quick view is built on the Interactivity API and the Mix and Match container store, instead of the jQuery add to cart form. Requires Mix and Match 3.0 and WordPress 6.5.
-* Update: Requires Mix and Match 3.0. With an older Mix and Match, WooCommerce or WordPress, an admin notice says what to update, and the quick view doesn't load.
+* Update: Requires Mix and Match 3.0.0-beta.1. With an older Mix and Match, WooCommerce or WordPress, an admin notice says what to update, and the quick view doesn't load.
 * Breaking: The script is now the @wc-mnm-quickview/quick-view script module. The wc_mnm_quick_view_params global is removed, and the wc-mnm-quick-view-loaded event is a DOM event on the dialog with { containerId, productId } in its detail.
 * New: The modal is printed once in the footer, and its buttons and text render from the store.
 * New: The item order, names and stock text come from the container store, so unavailable items say why, ex: "Out of stock". The quick view button only carries the container's add and remove button text.
