@@ -106,6 +106,11 @@ module.exports = function(grunt) {
 				}]
 			},
 			frontend: {
+				// The quick view is an ES module.
+				options: {
+					ie8: false,
+					module: true
+				},
 				files: [{
 					expand: true,
 					cwd: '<%= dirs.js %>/frontend/',

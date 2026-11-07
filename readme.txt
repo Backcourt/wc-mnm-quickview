@@ -1,7 +1,7 @@
 === WC Mix and Match - Quickview ===
 Contributors: helgatheviking
 Tags: woocommerce, mix and match, quick view
-Requires at least: 6.4
+Requires at least: 6.5
 Tested up to: 6.9
 Requires PHP: 8.0
 Stable tag: 3.0.0-beta.1
@@ -14,7 +14,7 @@ Open a Mix and Match child item's product details in a pop-up, with a button to 
 
 Mini-extension for WooCommerce Mix and Match. Shoppers open a child item's details from the magnifier button in the corner of its image, or from its title. The pop-up has a button to add the product to the container, a quantity stepper, and previous/next buttons to page through the products.
 
-Requires WooCommerce 8.0 and Mix and Match 2.8.0 or later.
+Requires WordPress 6.5, WooCommerce 8.0 and Mix and Match 3.0 or later.
 
 == Installation ==
 
@@ -24,6 +24,17 @@ Requires WooCommerce 8.0 and Mix and Match 2.8.0 or later.
 Updates come from the Backcourt update server.
 
 == Changelog ==
+
+= 3.0.0-beta.2 XXXX.XX.XX =
+* Breaking: The quick view is built on the Interactivity API and the Mix and Match container store, instead of the jQuery add to cart form. Requires Mix and Match 3.0 and WordPress 6.5.
+* Update: Requires Mix and Match 3.0.0-beta.1. With an older Mix and Match, WooCommerce or WordPress, an admin notice says what to update, and the quick view doesn't load.
+* Breaking: The script is now the @wc-mnm-quickview/quick-view script module. The wc_mnm_quick_view_params global is removed, and the wc-mnm-quick-view-loaded event is a DOM event on the dialog with { containerId, productId } in its detail.
+* New: The modal is printed once in the footer, and its buttons and text render from the store.
+* New: The item order, names and stock text come from the container store, so unavailable items say why, ex: "Out of stock". The quick view button only carries the container's add and remove button text.
+* Update: The quick view button uses the pointer cursor instead of the zoom cursor.
+* Update: Shorter default text that suits any container: "Add", "Remove", "Selected: 2" and "Included", instead of "Add to box", "Remove from box", "In your box: 2" and "Included in your box". The per-container button text and filters still work.
+* New: The add, remove and stepper buttons name the product for screen readers, ex: "Add Capitulo Vinho Regional". Translate or reorder it with the buttonLabel string.
+* Update: The quick view isn't loaded in the admin, ex: when editing an order item, because the container store isn't available there.
 
 = 3.0.0-beta.1 XXXX.XX.XX =
 * Breaking: Rebuilt without React. The quick view is a native dialog that works with the jQuery add to cart form.

@@ -3,7 +3,8 @@
 	"curly": true,
 	"eqeqeq": true,
 	"eqnull": true,
-	"esversion": 5,
+	"esversion": 11,
+	"module": true,
 	"expr": true,
 	"immed": true,
 	"noarg": true,
@@ -20,7 +21,6 @@
 		"Backbone": false,
 		"jQuery": false,
 		"JSON": false,
-		"wp": false,
-		"wc_mnm_quick_view_params": false
+		"wp": false
 	}
 }
