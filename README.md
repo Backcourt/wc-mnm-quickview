@@ -23,7 +23,7 @@ add_filter( 'wc_mnm_quick_view_remove_from_box_text', function( $text, $containe
 	return __( 'Remove from bundle', 'your-textdomain' );
 }, 10, 2 );
 
-// All other strings, ex: "In your box: %d".
+// All other strings, ex: "Selected: %d".
 add_filter( 'wc_mnm_quick_view_i18n', function( $i18n ) {
 	$i18n['inBox'] = __( 'In your bundle: %d', 'your-textdomain' );
 	return $i18n;

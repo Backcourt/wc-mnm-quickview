@@ -385,6 +385,20 @@ const load = () => {
 /*-----------------------------------------------------------------*/
 
 /**
+ * Add the open product's title to a button's text, ex: "Add Capitulo Vinho Regional".
+ *
+ * @param {string} text Button text.
+ * @return {string} The accessible label.
+ */
+const withTitle = ( text ) => {
+	if ( ! state.title ) {
+		return text;
+	}
+
+	return ( state.i18n.buttonLabel || '%1$s %2$s' ).replace( '%1$s', text ).replace( '%2$s', state.title );
+};
+
+/**
  * Show a child item in the modal, opening it if needed.
  *
  * @param {Object}  data    Item data.
@@ -407,6 +421,7 @@ const openItem = ( data, trigger ) => {
 		addToBox: data.addToBox || state.i18n.addToBox,
 		removeFromBox: data.removeFromBox || state.i18n.removeFromBox,
 	};
+	state.title       = data.title;
 	state.hasPrev     = !! siblings.prev;
 	state.hasNext     = !! siblings.next;
 	state.prevTitle   = siblings.prev ? siblings.prev.title : '';
@@ -559,6 +574,7 @@ const { state } = store( NAMESPACE, {
 		labels: { addToBox: '', removeFromBox: '' },
 		html: '',
 		messages: [], // HTML, from the last change of quantity.
+		title: '',
 		hasPrev: false,
 		hasNext: false,
 		prevTitle: '',
@@ -649,6 +665,23 @@ const { state } = store( NAMESPACE, {
 
 		get hideNav() {
 			return ! state.hasPrev && ! state.hasNext;
+		},
+
+		// Name the product on the add, remove and stepper buttons, so they make sense on their own.
+		get addLabel() {
+			return withTitle( state.labels.addToBox );
+		},
+
+		get removeLabel() {
+			return withTitle( state.labels.removeFromBox );
+		},
+
+		get decreaseLabel() {
+			return withTitle( state.i18n.decrease );
+		},
+
+		get increaseLabel() {
+			return withTitle( state.i18n.increase );
 		},
 
 		get prevLabel() {

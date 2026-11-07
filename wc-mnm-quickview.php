@@ -366,12 +366,12 @@ class Plugin {
 					</div>
 					<div class="wc-mnm-quick-view__actions">
 						<div class="wc-mnm-quick-view__stepper" data-wp-bind--hidden="state.hideStepper">
-							<button type="button" class="wc-mnm-quick-view__decrease button wp-element-button" aria-label="<?php echo esc_attr( $i18n['decrease'] ); ?>" data-wp-bind--disabled="state.cannotDecrease" data-wp-on--click="actions.decrease">&minus;</button>
+							<button type="button" class="wc-mnm-quick-view__decrease button wp-element-button" aria-label="<?php echo esc_attr( $i18n['decrease'] ); ?>" data-wp-bind--aria-label="state.decreaseLabel" data-wp-bind--disabled="state.cannotDecrease" data-wp-on--click="actions.decrease">&minus;</button>
 							<span class="wc-mnm-quick-view__quantity" aria-hidden="true" data-wp-text="state.quantity"></span>
-							<button type="button" class="wc-mnm-quick-view__increase button wp-element-button" aria-label="<?php echo esc_attr( $i18n['increase'] ); ?>" data-wp-bind--disabled="state.cannotIncrease" data-wp-on--click="actions.increase">+</button>
+							<button type="button" class="wc-mnm-quick-view__increase button wp-element-button" aria-label="<?php echo esc_attr( $i18n['increase'] ); ?>" data-wp-bind--aria-label="state.increaseLabel" data-wp-bind--disabled="state.cannotIncrease" data-wp-on--click="actions.increase">+</button>
 						</div>
-						<button type="button" class="wc-mnm-quick-view__add button alt wp-element-button" data-wp-bind--hidden="state.hideAdd" data-wp-bind--disabled="state.cannotIncrease" data-wp-class--disabled="state.cannotIncrease" data-wp-text="state.labels.addToBox" data-wp-on--click="actions.add"></button>
-						<button type="button" class="wc-mnm-quick-view__remove button wp-element-button" data-wp-bind--hidden="state.hideRemove" data-wp-text="state.labels.removeFromBox" data-wp-on--click="actions.decrease"></button>
+						<button type="button" class="wc-mnm-quick-view__add button alt wp-element-button" data-wp-bind--hidden="state.hideAdd" data-wp-bind--disabled="state.cannotIncrease" data-wp-class--disabled="state.cannotIncrease" data-wp-bind--aria-label="state.addLabel" data-wp-text="state.labels.addToBox" data-wp-on--click="actions.add"></button>
+						<button type="button" class="wc-mnm-quick-view__remove button wp-element-button" data-wp-bind--hidden="state.hideRemove" data-wp-bind--aria-label="state.removeLabel" data-wp-text="state.labels.removeFromBox" data-wp-on--click="actions.decrease"></button>
 					</div>
 				</div>
 			</div>
@@ -520,7 +520,7 @@ class Plugin {
 			array(
 				'id'          => self::META_ADD_TEXT,
 				'label'       => esc_html__( 'Quick view add button text', 'wc-mnm-quickview' ),
-				'placeholder' => esc_attr_x( 'Add to box', '[Frontend]', 'wc-mnm-quickview' ),
+				'placeholder' => esc_attr_x( 'Add', '[Frontend]', 'wc-mnm-quickview' ),
 				'value'       => $container->get_meta( self::META_ADD_TEXT ),
 				'desc_tip'    => true,
 				'description' => esc_html__( 'Text of the button that adds a product to this container from its quick view, ex: Add to bundle. Leave blank for the default.', 'wc-mnm-quickview' ),
@@ -531,7 +531,7 @@ class Plugin {
 			array(
 				'id'          => self::META_REMOVE_TEXT,
 				'label'       => esc_html__( 'Quick view remove button text', 'wc-mnm-quickview' ),
-				'placeholder' => esc_attr_x( 'Remove from box', '[Frontend]', 'wc-mnm-quickview' ),
+				'placeholder' => esc_attr_x( 'Remove', '[Frontend]', 'wc-mnm-quickview' ),
 				'value'       => $container->get_meta( self::META_REMOVE_TEXT ),
 				'desc_tip'    => true,
 				'description' => esc_html__( 'Text of the button that removes a product from this container in its quick view, shown for checkbox selections. Leave blank for the default.', 'wc-mnm-quickview' ),
@@ -628,7 +628,7 @@ class Plugin {
 		 * @param string           $text
 		 * @param \WC_Product|null $container The container, if known.
 		 */
-		return (string) apply_filters( 'wc_mnm_quick_view_add_to_box_text', '' !== $text ? $text : _x( 'Add to box', '[Frontend]', 'wc-mnm-quickview' ), $container );
+		return (string) apply_filters( 'wc_mnm_quick_view_add_to_box_text', '' !== $text ? $text : _x( 'Add', '[Frontend]', 'wc-mnm-quickview' ), $container );
 	}
 
 	/**
@@ -649,7 +649,7 @@ class Plugin {
 		 * @param string           $text
 		 * @param \WC_Product|null $container The container, if known.
 		 */
-		return (string) apply_filters( 'wc_mnm_quick_view_remove_from_box_text', '' !== $text ? $text : _x( 'Remove from box', '[Frontend]', 'wc-mnm-quickview' ), $container );
+		return (string) apply_filters( 'wc_mnm_quick_view_remove_from_box_text', '' !== $text ? $text : _x( 'Remove', '[Frontend]', 'wc-mnm-quickview' ), $container );
 	}
 
 	/**
@@ -663,8 +663,8 @@ class Plugin {
 			'addToBox'      => self::get_add_to_box_text(),
 			'removeFromBox' => self::get_remove_from_box_text(),
 			/* translators: %d: Quantity of the child item in the container. */
-			'inBox'         => _x( 'In your box: %d', '[Frontend]', 'wc-mnm-quickview' ),
-			'included'      => _x( 'Included in your box', '[Frontend]', 'wc-mnm-quickview' ),
+			'inBox'         => _x( 'Selected: %d', '[Frontend]', 'wc-mnm-quickview' ),
+			'included'      => _x( 'Included', '[Frontend]', 'wc-mnm-quickview' ),
 			'unavailable'   => _x( 'This product can\'t be added to your box.', '[Frontend]', 'wc-mnm-quickview' ),
 			'full'          => _x( 'Your box is full. Remove an item to make room.', '[Frontend]', 'wc-mnm-quickview' ),
 			'error'         => _x( 'Sorry, this product could not be loaded.', '[Frontend]', 'wc-mnm-quickview' ),
@@ -673,6 +673,8 @@ class Plugin {
 			'increase'      => _x( 'Add one more', '[Frontend]', 'wc-mnm-quickview' ),
 			'previous'      => _x( 'Previous product', '[Frontend]', 'wc-mnm-quickview' ),
 			'next'          => _x( 'Next product', '[Frontend]', 'wc-mnm-quickview' ),
+			/* translators: %1$s: Button text, ex: Add. %2$s: Child product title. */
+			'buttonLabel'   => _x( '%1$s %2$s', '[Frontend]', 'wc-mnm-quickview' ),
 			'quickView'     => _x( 'Quick view', '[Frontend]', 'wc-mnm-quickview' ),
 			/* translators: %s: Child product title. */
 			'openLabel'     => _x( 'Quick view: %s', '[Frontend]', 'wc-mnm-quickview' ),
