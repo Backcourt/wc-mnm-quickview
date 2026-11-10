@@ -35,7 +35,6 @@ Updates come from the Backcourt update server.
 * Update: Shorter default text that suits any container: "Add", "Remove", "Selected: 2" and "Included", instead of "Add to box", "Remove from box", "In your box: 2" and "Included in your box". The per-container button text and filters still work.
 * New: The add, remove and stepper buttons name the product for screen readers, ex: "Add Capitulo Vinho Regional". Translate or reorder it with the buttonLabel string.
 * Update: The quick view isn't loaded in the admin, ex: when editing an order item, because the container store isn't available there.
-* Fix: Updates from the Backcourt update server. The plugin looked for Git Updater Lite under its original class name instead of the prefixed one shipped in the zip.
 
 = 3.0.0-beta.1 XXXX.XX.XX =
 * Breaking: Rebuilt without React. The quick view is a native dialog that works with the jQuery add to cart form.

@@ -38,8 +38,8 @@ defined( 'ABSPATH' ) || exit;
 if ( file_exists( __DIR__ . '/vendor-prefixed/autoload.php' ) ) {
 	require_once __DIR__ . '/vendor-prefixed/autoload.php';
 
-	if ( class_exists( Backcourt\MNMQuickView\Vendor\Fragen\Git_Updater\Lite::class ) ) {
-		( new Backcourt\MNMQuickView\Vendor\Fragen\Git_Updater\Lite( __FILE__ ) )->run();
+	if ( class_exists( Fragen\Git_Updater\Lite::class ) ) {
+		( new Fragen\Git_Updater\Lite( __FILE__ ) )->run();
 	}
 }
 
