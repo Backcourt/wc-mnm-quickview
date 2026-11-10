@@ -9,7 +9,9 @@ on:
 jobs:
     release:
         name: Build distribution release.
-        uses: backcourt/github-workflows/.github/workflows/release-public.yml@trunk
+        uses: backcourt/github-workflows/.github/workflows/release-github.yml@trunk
+        with:
+            prefixed: true
         permissions:
             contents: write
         secrets: inherit
