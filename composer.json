@@ -16,7 +16,7 @@
   },
   "require": {
     "php": ">=8.0",
-    "afragen/git-updater-lite": "^3.0"
+    "afragen/git-updater-lite": "^3.5"
   },
   "require-dev": {
     "woocommerce/woocommerce-sniffs": "^1.0",
@@ -37,6 +37,7 @@
     ],
     "prefix-namespaces": [
       "sh -c 'test -f bin/strauss.phar || { mkdir -p bin && curl -fL -o bin/strauss.phar https://github.com/BrianHenryIE/strauss/releases/latest/download/strauss.phar; }'",
+      "@php -d memory_limit=1G bin/strauss.phar --info",
       "@php bin/strauss.phar",
       "@composer dump-autoload"
     ],

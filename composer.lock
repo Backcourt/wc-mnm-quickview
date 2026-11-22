@@ -4,28 +4,29 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "6a4c16abda54d3f0261b0defa4ebec6e",
+    "content-hash": "090dcad4ebf731bc0afbc06a071084d1",
     "packages": [
         {
             "name": "afragen/git-updater-lite",
-            "version": "3.2.0",
+            "version": "3.5.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/afragen/git-updater-lite.git",
-                "reference": "91d3f39b9a7bf04ee8c17569611ac1bc68ce6e21"
+                "reference": "66b2307e55ae326da7adc5fdb7c9055d4c1a77da"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/afragen/git-updater-lite/zipball/91d3f39b9a7bf04ee8c17569611ac1bc68ce6e21",
-                "reference": "91d3f39b9a7bf04ee8c17569611ac1bc68ce6e21",
+                "url": "https://api.github.com/repos/afragen/git-updater-lite/zipball/66b2307e55ae326da7adc5fdb7c9055d4c1a77da",
+                "reference": "66b2307e55ae326da7adc5fdb7c9055d4c1a77da",
                 "shasum": ""
             },
             "require": {
                 "php": ">=7.4"
             },
             "require-dev": {
+                "phpunit/phpunit": "^9.0",
                 "wp-coding-standards/wpcs": "^3",
-                "yoast/phpunit-polyfills": "*"
+                "yoast/phpunit-polyfills": "^1.1"
             },
             "type": "library",
             "autoload": {
@@ -53,7 +54,7 @@
             ],
             "support": {
                 "issues": "https://github.com/afragen/git-updater-lite/issues",
-                "source": "https://github.com/afragen/git-updater-lite/tree/3.2.0"
+                "source": "https://github.com/afragen/git-updater-lite/tree/3.5.2"
             },
             "funding": [
                 {
@@ -61,7 +62,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-10-02T22:45:48+00:00"
+            "time": "2026-11-21T22:20:29+00:00"
         }
     ],
     "packages-dev": [
@@ -221,16 +222,16 @@
         },
         {
             "name": "gettext/gettext",
-            "version": "v4.8.12",
+            "version": "v4.8.13",
             "source": {
                 "type": "git",
                 "url": "https://github.com/php-gettext/Gettext.git",
-                "reference": "11af89ee6c087db3cf09ce2111a150bca5c46e12"
+                "reference": "d5b707149f6cf056b375ad50d2d0224102038ce6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/php-gettext/Gettext/zipball/11af89ee6c087db3cf09ce2111a150bca5c46e12",
-                "reference": "11af89ee6c087db3cf09ce2111a150bca5c46e12",
+                "url": "https://api.github.com/repos/php-gettext/Gettext/zipball/d5b707149f6cf056b375ad50d2d0224102038ce6",
+                "reference": "d5b707149f6cf056b375ad50d2d0224102038ce6",
                 "shasum": ""
             },
             "require": {
@@ -282,7 +283,7 @@
             "support": {
                 "email": "oom@oscarotero.com",
                 "issues": "https://github.com/oscarotero/Gettext/issues",
-                "source": "https://github.com/php-gettext/Gettext/tree/v4.8.12"
+                "source": "https://github.com/php-gettext/Gettext/tree/v4.8.13"
             },
             "funding": [
                 {
@@ -298,7 +299,7 @@
                     "type": "patreon"
                 }
             ],
-            "time": "2024-05-18T10:25:07+00:00"
+            "time": "2026-11-18T12:39:25+00:00"
         },
         {
             "name": "gettext/languages",
