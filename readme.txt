@@ -25,6 +25,10 @@ Updates come from the Backcourt update server.
 
 == Changelog ==
 
+= 3.0.1 XXXX.XX.XX =
+* Fix: Unlock Mix and Match's container store, which is private while it's experimental. Without the key the quick view couldn't read the container or add items to it.
+* Dev: Update Git Updater Lite to 3.5.
+
 = 3.0.0 2026.11.10 =
 * Breaking: The quick view is built on the Interactivity API and the Mix and Match container store, instead of the jQuery add to cart form. Requires Mix and Match 3.0 and WordPress 6.5.
 * Update: Requires Mix and Match 3.0.0-beta.1. With an older Mix and Match, WooCommerce or WordPress, an admin notice says what to update, and the quick view doesn't load.

@@ -41,7 +41,12 @@ const HOVER_DELAY = 80;
  */
 const FIXED_TYPES = [ 'unavailable', 'hidden' ];
 
-const { state: mnm, actions: mnmActions } = store( 'wc-mix-and-match/container' );
+/**
+ * The container store is private while it's experimental, unlocked with this key.
+ */
+const MNM_LOCK = 'I acknowledge that using a private store means my plugin will inevitably break on the next store release.';
+
+const { state: mnm, actions: mnmActions } = store( 'wc-mix-and-match/container', {}, { lock: MNM_LOCK } );
 
 /*-----------------------------------------------------------------*/
 /*  Not reactive on purpose                                        */
