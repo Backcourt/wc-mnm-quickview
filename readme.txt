@@ -4,7 +4,7 @@ Tags: woocommerce, mix and match, quick view
 Requires at least: 6.5
 Tested up to: 6.9
 Requires PHP: 8.0
-Stable tag: 3.0.0
+Stable tag: 3.0.0-beta.2
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -25,11 +25,14 @@ Updates come from the Backcourt update server.
 
 == Changelog ==
 
-= 3.0.1 XXXX.XX.XX =
+= 3.0.0-beta.2 2026.11.23 =
+* Update: Requires Mix and Match 3.0.0-beta.2.
 * Fix: Unlock Mix and Match's container store, which is private while it's experimental. Without the key the quick view couldn't read the container or add items to it.
+* Fix: Translate the admin notice about missing requirements after init, so WordPress no longer warns that translations loaded too early.
 * Dev: Update Git Updater Lite to 3.5.
+* Dev: Check PHP against the WordPress coding standards.
 
-= 3.0.0 2026.11.10 =
+= 3.0.0-beta.1 2026.11.10 =
 * Breaking: The quick view is built on the Interactivity API and the Mix and Match container store, instead of the jQuery add to cart form. Requires Mix and Match 3.0 and WordPress 6.5.
 * Update: Requires Mix and Match 3.0.0-beta.1. With an older Mix and Match, WooCommerce or WordPress, an admin notice says what to update, and the quick view doesn't load.
 * Breaking: The script is now the @wc-mnm-quickview/quick-view script module. The wc_mnm_quick_view_params global and the wc-mnm-quick-view-loaded event are removed. Watch state.loaded in the wc-mnm-quickview store instead, see the readme.
