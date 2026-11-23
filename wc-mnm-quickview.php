@@ -17,7 +17,7 @@
  *
  * WC requires at least: 8.2.0
  * WC tested up to: 11.2.0
- * 
+ *
  * Update URI: https://www.backcourt.io/
  *
  * Copyright: © 2020 Backcourt Development
