@@ -76,7 +76,7 @@ class Plugin {
 	const STORE = 'wc-mnm-quickview';
 
 	/**
-	 * Why the plugin isn't running, shown as an admin notice.
+	 * Why the plugin isn't running: wc, mnm, wp or store. Translated in the admin notice, after init.
 	 *
 	 * @var string
 	 */
@@ -173,23 +173,17 @@ class Plugin {
 	protected function meets_requirements() {
 
 		if ( ! function_exists( 'WC' ) || version_compare( WC()->version, self::REQ_WC_VERSION ) < 0 ) {
-			/* translators: %s: Required WooCommerce version. */
-			$this->notice = sprintf( __( 'WC Mix and Match - Quickview requires WooCommerce %s or newer.', 'wc-mnm-quickview' ), self::REQ_WC_VERSION );
+			$this->notice = 'wc';
 			return false;
 		}
 
 		if ( ! function_exists( 'wc_mix_and_match' ) || version_compare( wc_mix_and_match()->version, self::REQ_MNM_VERSION ) < 0 ) {
-			/* translators: %s: Required Mix and Match version. */
-			$this->notice = sprintf( __( 'WC Mix and Match - Quickview requires Mix and Match %s or newer.', 'wc-mnm-quickview' ), self::REQ_MNM_VERSION );
+			$this->notice = 'mnm';
 			return false;
 		}
 
 		if ( ! self::is_supported() ) {
-			$this->notice = class_exists( ContainerStore::class )
-				/* translators: %s: Required WordPress version. */
-				? sprintf( __( 'WC Mix and Match - Quickview requires WordPress %s or newer.', 'wc-mnm-quickview' ), self::REQ_WP_VERSION )
-				/* translators: %s: Required Mix and Match version. */
-				: sprintf( __( 'WC Mix and Match - Quickview requires the Mix and Match container store, from Mix and Match %s.', 'wc-mnm-quickview' ), self::REQ_MNM_VERSION );
+			$this->notice = class_exists( ContainerStore::class ) ? 'wp' : 'store';
 			return false;
 		}
 
@@ -205,7 +199,25 @@ class Plugin {
 			return;
 		}
 
-		printf( '<div class="notice notice-error"><p>%s</p></div>', esc_html( $this->notice ) );
+		switch ( $this->notice ) {
+			case 'wc':
+				/* translators: %s: Required WooCommerce version. */
+				$message = sprintf( __( 'WC Mix and Match - Quickview requires WooCommerce %s or newer.', 'wc-mnm-quickview' ), self::REQ_WC_VERSION );
+				break;
+			case 'mnm':
+				/* translators: %s: Required Mix and Match version. */
+				$message = sprintf( __( 'WC Mix and Match - Quickview requires Mix and Match %s or newer.', 'wc-mnm-quickview' ), self::REQ_MNM_VERSION );
+				break;
+			case 'wp':
+				/* translators: %s: Required WordPress version. */
+				$message = sprintf( __( 'WC Mix and Match - Quickview requires WordPress %s or newer.', 'wc-mnm-quickview' ), self::REQ_WP_VERSION );
+				break;
+			default:
+				/* translators: %s: Required Mix and Match version. */
+				$message = sprintf( __( 'WC Mix and Match - Quickview requires the Mix and Match container store, from Mix and Match %s.', 'wc-mnm-quickview' ), self::REQ_MNM_VERSION );
+		}
+
+		printf( '<div class="notice notice-error"><p>%s</p></div>', esc_html( $message ) );
 	}
 
 	/*-----------------------------------------------------------------------------------*/
